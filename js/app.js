@@ -41,46 +41,19 @@ const htmlEl      = document.documentElement;
 const loginScreen = document.getElementById('loginScreen');
 const appScreen   = document.getElementById('appScreen');
 const btnLogin    = document.getElementById('btnLogin');
-const themeIcon   = document.getElementById('themeIcon');
-const btnTheme    = document.getElementById('btnTheme');
 
-// ── DOM — inside appScreen (grabbed after show) ────────────
-let btnLogout, userAvatar, userName;
-let form, inputName, inputAmount, inputCategory, inputDate, inputType;
-let listEl, emptyState;
-let totalIncomeEl, totalExpenseEl, totalBalanceEl, balanceCard;
-let btnSubmit, btnExport;
-let expenseCanvas, expenseEmpty, incomeCanvas, incomeEmpty;
+// Theme buttons (one on login, one on app)
+const btnThemeLogin = document.getElementById('btnTheme');
+const themeIconLogin = document.getElementById('themeIcon');
+const btnThemeApp   = document.getElementById('btnThemeApp');
+const themeIconApp  = document.getElementById('themeIconApp');
 
-function grabAppDom() {
-  btnLogout      = document.getElementById('btnLogout');
-  userAvatar     = document.getElementById('userAvatar');
-  userName       = document.getElementById('userName');
-  form           = document.getElementById('transactionForm');
-  inputName      = document.getElementById('itemName');
-  inputAmount    = document.getElementById('amount');
-  inputCategory  = document.getElementById('category');
-  inputDate      = document.getElementById('txDate');
-  inputType      = document.getElementById('txType');
-  listEl         = document.getElementById('transactionList');
-  emptyState     = document.getElementById('emptyState');
-  totalIncomeEl  = document.getElementById('totalIncome');
-  totalExpenseEl = document.getElementById('totalExpense');
-  totalBalanceEl = document.getElementById('totalBalance');
-  balanceCard    = document.getElementById('balanceCard');
-  btnSubmit      = document.getElementById('btnSubmit');
-  btnExport      = document.getElementById('btnExport');
-  expenseCanvas  = document.getElementById('spendingChart');
-  expenseEmpty   = document.getElementById('chartEmpty');
-  incomeCanvas   = document.getElementById('incomeChart');
-  incomeEmpty    = document.getElementById('incomeChartEmpty');
-}
-
-// ── Theme (early, affects login page too) ─────────────────
+// ── Theme (runs immediately, affects both screens) ─────────
 applyTheme(localStorage.getItem(THEME_KEY) || 'light');
-btnTheme.addEventListener('click', toggleTheme);
+btnThemeLogin.addEventListener('click', toggleTheme);
+btnThemeApp.addEventListener('click', toggleTheme);
 
-// ── Auth State ─────────────────────────────────────────────
+// ── Auth State Listener ────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
@@ -97,58 +70,68 @@ btnLogin.addEventListener('click', async () => {
     btnLogin.disabled = true;
     btnLogin.textContent = 'Menghubungkan...';
     await signInWithPopup(auth, provider);
+    // onAuthStateChanged handles the rest
   } catch (err) {
     console.error('Login error:', err.code, err.message);
     btnLogin.disabled = false;
-    btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
+    btnLogin.innerHTML = `
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+      Masuk dengan Google`;
     if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-      alert('Login gagal: ' + err.message);
+      alert('Login gagal. Coba lagi.');
     }
   }
 });
 
-// ── Show / Hide Screens ────────────────────────────────────
+// ── Show Login ─────────────────────────────────────────────
 function showLogin() {
   loginScreen.style.display = 'flex';
   appScreen.style.display   = 'none';
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
   transactions = [];
+  // Reset charts
+  if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
+  if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
+  // Reset login button
   btnLogin.disabled = false;
-  btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
+  btnLogin.innerHTML = `
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+    Masuk dengan Google`;
 }
 
+// ── Show App ───────────────────────────────────────────────
 function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
 
-  // Grab DOM now that appScreen is visible
-  grabAppDom();
-
   // User info
-  userName.textContent = user.displayName || user.email;
+  document.getElementById('userName').textContent = user.displayName || user.email;
+  const avatarEl = document.getElementById('userAvatar');
   if (user.photoURL) {
-    userAvatar.src = user.photoURL;
-    userAvatar.style.display = 'block';
+    avatarEl.src = user.photoURL;
+    avatarEl.style.display = 'block';
   } else {
-    userAvatar.style.display = 'none';
+    avatarEl.style.display = 'none';
   }
 
   // Logout
-  btnLogout.addEventListener('click', async () => {
-    if (unsubscribe) unsubscribe();
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     await signOut(auth);
   });
 
-  // Form events
-  form.addEventListener('submit', handleSubmit);
-  btnExport.addEventListener('click', handleExport);
+  // Form & export
+  document.getElementById('transactionForm').addEventListener('submit', handleSubmit);
+  document.getElementById('btnExport').addEventListener('click', handleExport);
 
-  // Init
-  inputDate.value = todayISO();
+  // Init form
+  document.getElementById('txDate').value = todayISO();
   populateCategories('Pengeluaran');
   bindTypeToggle();
   bindFilterTabs();
   bindAmountMask();
+
+  // Start listening to Firestore
   listenToFirestore(user.uid);
 }
 
@@ -163,14 +146,16 @@ function listenToFirestore(uid) {
     transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
   }, (err) => {
-    console.error('Firestore error:', err);
+    console.error('Firestore listener error:', err);
   });
 }
 
 // ── Theme ──────────────────────────────────────────────────
 function applyTheme(theme) {
   htmlEl.setAttribute('data-theme', theme);
-  if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+  const icon = theme === 'dark' ? '☀️' : '🌙';
+  if (themeIconLogin) themeIconLogin.textContent = icon;
+  if (themeIconApp)   themeIconApp.textContent   = icon;
   localStorage.setItem(THEME_KEY, theme);
 
   Chart.defaults.color = theme === 'dark' ? '#94a3b8' : '#64748b';
@@ -191,8 +176,9 @@ function bindTypeToggle() {
       document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeType = btn.dataset.type;
-      inputType.value = activeType;
+      document.getElementById('txType').value = activeType;
       populateCategories(activeType);
+      const btnSubmit = document.getElementById('btnSubmit');
       btnSubmit.classList.toggle('income-mode', activeType === 'Pendapatan');
       btnSubmit.textContent = activeType === 'Pendapatan' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran';
     });
@@ -201,14 +187,15 @@ function bindTypeToggle() {
 
 function populateCategories(type) {
   const cats = type === 'Pendapatan' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  inputCategory.innerHTML = '<option value="">-- Pilih Kategori --</option>';
+  const sel  = document.getElementById('category');
+  sel.innerHTML = '<option value="">-- Pilih Kategori --</option>';
   Object.entries(cats).forEach(([name, { icon }]) => {
     const opt = document.createElement('option');
     opt.value = name;
     opt.textContent = `${icon} ${name}`;
-    inputCategory.appendChild(opt);
+    sel.appendChild(opt);
   });
-  inputCategory.classList.remove('invalid');
+  sel.classList.remove('invalid');
   document.getElementById('err-category').textContent = '';
 }
 
@@ -226,6 +213,7 @@ function bindFilterTabs() {
 
 // ── Amount Masking ─────────────────────────────────────────
 function bindAmountMask() {
+  const inputAmount = document.getElementById('amount');
   inputAmount.addEventListener('input', () => {
     const digits = inputAmount.value.replace(/\D/g, '');
     rawAmount = digits;
@@ -233,24 +221,24 @@ function bindAmountMask() {
     inputAmount.closest('.amount-wrapper').classList.remove('invalid');
     document.getElementById('err-amount').textContent = '';
   });
-
   inputAmount.addEventListener('keydown', (e) => {
     const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
     if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
   });
 }
 
-// ── Handlers ───────────────────────────────────────────────
+// ── Submit Handler ─────────────────────────────────────────
 async function handleSubmit(e) {
   e.preventDefault();
   if (!validateForm() || !currentUser) return;
 
+  const btnSubmit = document.getElementById('btnSubmit');
   const tx = {
     type:      activeType,
-    name:      inputName.value.trim(),
+    name:      document.getElementById('itemName').value.trim(),
     amount:    parseInt(rawAmount, 10),
-    category:  inputCategory.value,
-    date:      inputDate.value,
+    category:  document.getElementById('category').value,
+    date:      document.getElementById('txDate').value,
     createdAt: Date.now(),
   };
 
@@ -258,9 +246,9 @@ async function handleSubmit(e) {
     btnSubmit.disabled = true;
     btnSubmit.textContent = 'Menyimpan...';
     await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), tx);
-    form.reset();
+    e.target.reset();
     rawAmount = '';
-    inputDate.value = todayISO();
+    document.getElementById('txDate').value = todayISO();
     populateCategories(activeType);
   } catch (err) {
     console.error('Gagal menyimpan:', err);
@@ -271,13 +259,14 @@ async function handleSubmit(e) {
   }
 }
 
+// ── Delete Handler ─────────────────────────────────────────
 async function handleDelete(id) {
   if (!currentUser) return;
   try {
     await deleteDoc(doc(db, 'users', currentUser.uid, 'transactions', id));
   } catch (err) {
     console.error('Gagal menghapus:', err);
-    alert('Gagal menghapus transaksi. Cek koneksi internet.');
+    alert('Gagal menghapus transaksi.');
   }
 }
 
@@ -286,12 +275,13 @@ function validateForm() {
   let valid = true;
 
   const fields = [
-    { el: inputName,     errId: 'err-itemName', msg: 'Nama item wajib diisi.' },
-    { el: inputCategory, errId: 'err-category', msg: 'Pilih kategori terlebih dahulu.' },
-    { el: inputDate,     errId: 'err-txDate',   msg: 'Tanggal wajib diisi.' },
+    { id: 'itemName',  errId: 'err-itemName', msg: 'Nama item wajib diisi.' },
+    { id: 'category',  errId: 'err-category', msg: 'Pilih kategori terlebih dahulu.' },
+    { id: 'txDate',    errId: 'err-txDate',   msg: 'Tanggal wajib diisi.' },
   ];
 
-  fields.forEach(({ el, errId, msg }) => {
+  fields.forEach(({ id, errId, msg }) => {
+    const el    = document.getElementById(id);
     const errEl = document.getElementById(errId);
     if (!el.value.trim()) {
       el.classList.add('invalid');
@@ -303,6 +293,7 @@ function validateForm() {
     }
   });
 
+  const inputAmount   = document.getElementById('amount');
   const amountWrapper = inputAmount.closest('.amount-wrapper');
   const amountErrEl   = document.getElementById('err-amount');
   const amountVal     = parseInt(rawAmount, 10);
@@ -330,13 +321,14 @@ function renderSummary() {
   const expense = transactions.filter(tx => tx.type === 'Pengeluaran').reduce((s, tx) => s + tx.amount, 0);
   const balance = income - expense;
 
-  totalIncomeEl.textContent  = formatRupiah(income);
-  totalExpenseEl.textContent = formatRupiah(expense);
-  totalBalanceEl.textContent = (balance < 0 ? '- ' : '') + formatRupiah(Math.abs(balance));
-  balanceCard.classList.toggle('negative', balance < 0);
+  document.getElementById('totalIncome').textContent  = formatRupiah(income);
+  document.getElementById('totalExpense').textContent = formatRupiah(expense);
+  document.getElementById('totalBalance').textContent = (balance < 0 ? '- ' : '') + formatRupiah(Math.abs(balance));
+  document.getElementById('balanceCard').classList.toggle('negative', balance < 0);
 }
 
 function renderList() {
+  const listEl = document.getElementById('transactionList');
   Array.from(listEl.querySelectorAll('.transaction-item')).forEach(el => el.remove());
 
   const filtered = (activeFilter === 'Semua'
@@ -344,8 +336,9 @@ function renderList() {
     : transactions.filter(tx => tx.type === activeFilter)
   ).slice().sort((a, b) => a.date.localeCompare(b.date));
 
-  btnExport.disabled = transactions.length === 0;
+  document.getElementById('btnExport').disabled = transactions.length === 0;
 
+  const emptyState = document.getElementById('emptyState');
   if (filtered.length === 0) {
     emptyState.style.display = 'block';
     return;
@@ -360,7 +353,6 @@ function renderList() {
     const item = document.createElement('div');
     item.className = `transaction-item cat-${tx.category}`;
     item.dataset.id = tx.id;
-
     item.innerHTML = `
       <div class="tx-info">
         <span class="tx-name">${escapeHTML(tx.name)}</span>
@@ -375,7 +367,6 @@ function renderList() {
       </span>
       <button class="btn-delete" title="Hapus" aria-label="Hapus ${escapeHTML(tx.name)}">🗑️</button>
     `;
-
     item.querySelector('.btn-delete').addEventListener('click', () => handleDelete(tx.id));
     listEl.appendChild(item);
   });
@@ -385,20 +376,23 @@ function renderCharts() {
   renderPieChart({
     txList:  transactions.filter(tx => tx.type === 'Pengeluaran'),
     cats:    EXPENSE_CATEGORIES,
-    canvas:  expenseCanvas,
-    emptyEl: expenseEmpty,
+    canvasId: 'spendingChart',
+    emptyId:  'chartEmpty',
     ref:     'expense',
   });
   renderPieChart({
     txList:  transactions.filter(tx => tx.type === 'Pendapatan'),
     cats:    INCOME_CATEGORIES,
-    canvas:  incomeCanvas,
-    emptyEl: incomeEmpty,
+    canvasId: 'incomeChart',
+    emptyId:  'incomeChartEmpty',
     ref:     'income',
   });
 }
 
-function renderPieChart({ txList, cats, canvas, emptyEl, ref }) {
+function renderPieChart({ txList, cats, canvasId, emptyId, ref }) {
+  const canvas  = document.getElementById(canvasId);
+  const emptyEl = document.getElementById(emptyId);
+
   const totals = {};
   txList.forEach(tx => { totals[tx.category] = (totals[tx.category] || 0) + tx.amount; });
 
@@ -472,7 +466,6 @@ function handleExport() {
     const addr = XLSX.utils.encode_cell({ r: 0, c });
     if (ws[addr]) ws[addr].s = { font: { bold: true } };
   });
-
   for (let r = 1; r <= rows.length; r++) {
     const addr = XLSX.utils.encode_cell({ r, c: 4 });
     if (ws[addr]) { ws[addr].t = 'n'; ws[addr].z = '#,##0'; }
@@ -484,8 +477,8 @@ function handleExport() {
 }
 
 // ── Helpers ────────────────────────────────────────────────
-function formatRupiah(amount) {
-  return 'Rp ' + amount.toLocaleString('id-ID');
+function formatRupiah(n) {
+  return 'Rp ' + n.toLocaleString('id-ID');
 }
 
 function formatDate(iso) {
