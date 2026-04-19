@@ -12,6 +12,14 @@ import {
   query,
   orderBy,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDC2avZUyiK8WEWPL1tvPuCEWmKcwc2fCY",
@@ -23,7 +31,14 @@ const firebaseConfig = {
   measurementId:     "G-M635VVWLYP",
 };
 
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+const app      = initializeApp(firebaseConfig);
+const db       = getFirestore(app);
+const auth     = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-export { db, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy };
+export {
+  db, auth, provider,
+  collection, addDoc, deleteDoc, doc,
+  onSnapshot, query, orderBy,
+  signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+};

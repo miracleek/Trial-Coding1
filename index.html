@@ -8,126 +8,155 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <div class="container">
 
-    <!-- Header -->
-    <header>
-      <h1>💰 Finance Tracker</h1>
-      <div class="header-right">
-        <div class="summary-cards">
-          <div class="summary-card income">
-            <span class="summary-label">Total Pendapatan</span>
-            <span class="summary-amount" id="totalIncome">Rp 0</span>
+  <!-- ── Login Screen ── -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div class="login-logo">💰</div>
+      <h1 class="login-title">Finance Tracker</h1>
+      <p class="login-subtitle">made by Rinal</p>
+      <button id="btnLogin" class="btn-google">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+        Masuk dengan Google
+      </button>
+    </div>
+  </div>
+
+  <!-- ── App Screen ── -->
+  <div id="appScreen" style="display:none;">
+    <div class="container">
+
+      <!-- Header -->
+      <header>
+        <h1>💰 Finance Tracker</h1>
+        <div class="header-right">
+          <div class="summary-cards">
+            <div class="summary-card income">
+              <span class="summary-label">Total Pendapatan</span>
+              <span class="summary-amount" id="totalIncome">Rp 0</span>
+            </div>
+            <div class="summary-card expense">
+              <span class="summary-label">Total Pengeluaran</span>
+              <span class="summary-amount" id="totalExpense">Rp 0</span>
+            </div>
+            <div class="summary-card balance" id="balanceCard">
+              <span class="summary-label">Saldo</span>
+              <span class="summary-amount" id="totalBalance">Rp 0</span>
+            </div>
           </div>
-          <div class="summary-card expense">
-            <span class="summary-label">Total Pengeluaran</span>
-            <span class="summary-amount" id="totalExpense">Rp 0</span>
-          </div>
-          <div class="summary-card balance" id="balanceCard">
-            <span class="summary-label">Saldo</span>
-            <span class="summary-amount" id="totalBalance">Rp 0</span>
+
+          <div class="header-controls">
+            <!-- User info -->
+            <div class="user-info">
+              <img id="userAvatar" src="" alt="Avatar" class="user-avatar" style="display:none;" />
+              <span id="userName" class="user-name"></span>
+            </div>
+            <!-- Logout -->
+            <button id="btnLogout" class="btn-logout" title="Keluar" aria-label="Keluar">
+              🚪
+            </button>
+            <!-- Dark / Light toggle -->
+            <button class="btn-theme" id="btnTheme" title="Toggle dark/light mode" aria-label="Toggle tema">
+              <span id="themeIcon">🌙</span>
+            </button>
           </div>
         </div>
-        <!-- Dark / Light toggle -->
-        <button class="btn-theme" id="btnTheme" title="Toggle dark/light mode" aria-label="Toggle tema">
-          <span id="themeIcon">🌙</span>
-        </button>
-      </div>
-    </header>
+      </header>
 
-    <div class="main-grid">
+      <div class="main-grid">
 
-      <!-- Left Column: Form + List -->
-      <div class="left-col">
+        <!-- Left Column: Form + List -->
+        <div class="left-col">
 
-        <!-- Input Form -->
-        <section class="card" id="form-section">
-          <h2>Tambah Transaksi</h2>
-          <form id="transactionForm" novalidate>
+          <!-- Input Form -->
+          <section class="card" id="form-section">
+            <h2>Tambah Transaksi</h2>
+            <form id="transactionForm" novalidate>
 
-            <div class="form-group">
-              <label for="txType">Tipe Transaksi</label>
-              <div class="type-toggle">
-                <button type="button" class="type-btn active" data-type="Pengeluaran">📤 Pengeluaran</button>
-                <button type="button" class="type-btn" data-type="Pendapatan">📥 Pendapatan</button>
+              <div class="form-group">
+                <label for="txType">Tipe Transaksi</label>
+                <div class="type-toggle">
+                  <button type="button" class="type-btn active" data-type="Pengeluaran">📤 Pengeluaran</button>
+                  <button type="button" class="type-btn" data-type="Pendapatan">📥 Pendapatan</button>
+                </div>
+                <input type="hidden" id="txType" value="Pengeluaran" />
               </div>
-              <input type="hidden" id="txType" value="Pengeluaran" />
-            </div>
 
-            <div class="form-group">
-              <label for="itemName">Nama Item</label>
-              <input type="text" id="itemName" placeholder="Contoh: Nasi Goreng" autocomplete="off" />
-              <span class="error-msg" id="err-itemName"></span>
-            </div>
-
-            <div class="form-group">
-              <label for="amount">Jumlah (Rp)</label>
-              <div class="amount-wrapper">
-                <span class="amount-prefix">Rp</span>
-                <input type="text" id="amount" placeholder="0" inputmode="numeric" autocomplete="off" />
+              <div class="form-group">
+                <label for="itemName">Nama Item</label>
+                <input type="text" id="itemName" placeholder="Contoh: Nasi Goreng" autocomplete="off" />
+                <span class="error-msg" id="err-itemName"></span>
               </div>
-              <span class="error-msg" id="err-amount"></span>
-            </div>
 
-            <div class="form-group">
-              <label for="category">Kategori</label>
-              <select id="category">
-                <option value="">-- Pilih Kategori --</option>
-              </select>
-              <span class="error-msg" id="err-category"></span>
-            </div>
-
-            <div class="form-group">
-              <label for="txDate">Tanggal</label>
-              <input type="date" id="txDate" />
-              <span class="error-msg" id="err-txDate"></span>
-            </div>
-
-            <button type="submit" class="btn-add" id="btnSubmit">+ Tambah Pengeluaran</button>
-          </form>
-        </section>
-
-        <!-- Transaction List -->
-        <section class="card" id="list-section">
-          <div class="list-header">
-            <h2>Daftar Transaksi</h2>
-            <div class="list-actions">
-              <div class="filter-tabs">
-                <button class="filter-btn active" data-filter="Semua">Semua</button>
-                <button class="filter-btn" data-filter="Pendapatan">Pendapatan</button>
-                <button class="filter-btn" data-filter="Pengeluaran">Pengeluaran</button>
+              <div class="form-group">
+                <label for="amount">Jumlah (Rp)</label>
+                <div class="amount-wrapper">
+                  <span class="amount-prefix">Rp</span>
+                  <input type="text" id="amount" placeholder="0" inputmode="numeric" autocomplete="off" />
+                </div>
+                <span class="error-msg" id="err-amount"></span>
               </div>
-              <button class="btn-export" id="btnExport" title="Export ke Excel" disabled>
-                📊 Export Excel
-              </button>
+
+              <div class="form-group">
+                <label for="category">Kategori</label>
+                <select id="category">
+                  <option value="">-- Pilih Kategori --</option>
+                </select>
+                <span class="error-msg" id="err-category"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="txDate">Tanggal</label>
+                <input type="date" id="txDate" />
+                <span class="error-msg" id="err-txDate"></span>
+              </div>
+
+              <button type="submit" class="btn-add" id="btnSubmit">+ Tambah Pengeluaran</button>
+            </form>
+          </section>
+
+          <!-- Transaction List -->
+          <section class="card" id="list-section">
+            <div class="list-header">
+              <h2>Daftar Transaksi</h2>
+              <div class="list-actions">
+                <div class="filter-tabs">
+                  <button class="filter-btn active" data-filter="Semua">Semua</button>
+                  <button class="filter-btn" data-filter="Pendapatan">Pendapatan</button>
+                  <button class="filter-btn" data-filter="Pengeluaran">Pengeluaran</button>
+                </div>
+                <button class="btn-export" id="btnExport" title="Export ke Excel" disabled>
+                  📊 Export Excel
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="list-wrapper" id="transactionList">
-            <p class="empty-state" id="emptyState">Belum ada transaksi. Yuk tambahkan!</p>
-          </div>
-        </section>
+            <div class="list-wrapper" id="transactionList">
+              <p class="empty-state" id="emptyState">Belum ada transaksi. Yuk tambahkan!</p>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- Right Column: Charts -->
+        <div class="right-col">
+          <section class="card">
+            <h2>Distribusi Pengeluaran</h2>
+            <div class="chart-wrapper">
+              <canvas id="spendingChart"></canvas>
+            </div>
+            <p class="empty-state" id="chartEmpty">Belum ada data pengeluaran.</p>
+          </section>
+
+          <section class="card">
+            <h2>Distribusi Pendapatan</h2>
+            <div class="chart-wrapper">
+              <canvas id="incomeChart"></canvas>
+            </div>
+            <p class="empty-state" id="incomeChartEmpty">Belum ada data pendapatan.</p>
+          </section>
+        </div>
 
       </div>
-
-      <!-- Right Column: Charts -->
-      <div class="right-col">
-        <section class="card">
-          <h2>Distribusi Pengeluaran</h2>
-          <div class="chart-wrapper">
-            <canvas id="spendingChart"></canvas>
-          </div>
-          <p class="empty-state" id="chartEmpty">Belum ada data pengeluaran.</p>
-        </section>
-
-        <section class="card">
-          <h2>Distribusi Pendapatan</h2>
-          <div class="chart-wrapper">
-            <canvas id="incomeChart"></canvas>
-          </div>
-          <p class="empty-state" id="incomeChartEmpty">Belum ada data pendapatan.</p>
-        </section>
-      </div>
-
     </div>
   </div>
 

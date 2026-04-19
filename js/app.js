@@ -1,16 +1,17 @@
 /* ===========================
    Finance Tracker — app.js
-   Vanilla JS | Firebase Firestore
+   Vanilla JS | Firebase Auth + Firestore
 =========================== */
 
 import {
-  db, collection, addDoc, deleteDoc,
-  doc, onSnapshot, query, orderBy,
+  db, auth, provider,
+  collection, addDoc, deleteDoc, doc,
+  onSnapshot, query, orderBy,
+  signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
 } from "./firebase.js";
 
 // ── Constants ──────────────────────────────────────────────
 const THEME_KEY = 'finance_tracker_theme';
-const TX_COLLECTION = 'transactions';
 
 const EXPENSE_CATEGORIES = {
   Makan:        { icon: '🍽️', color: '#f97316' },
@@ -26,15 +27,23 @@ const INCOME_CATEGORIES = {
 };
 
 // ── State ──────────────────────────────────────────────────
-let transactions = [];
-let activeType   = 'Pengeluaran';
-let activeFilter = 'Semua';
-let rawAmount    = '';
-let expenseChart = null;
-let incomeChart  = null;
+let transactions  = [];
+let activeType    = 'Pengeluaran';
+let activeFilter  = 'Semua';
+let rawAmount     = '';
+let expenseChart  = null;
+let incomeChart   = null;
+let currentUser   = null;
+let unsubscribe   = null; // Firestore listener cleanup
 
 // ── DOM References ─────────────────────────────────────────
 const htmlEl         = document.documentElement;
+const loginScreen    = document.getElementById('loginScreen');
+const appScreen      = document.getElementById('appScreen');
+const btnLogin       = document.getElementById('btnLogin');
+const btnLogout      = document.getElementById('btnLogout');
+const userAvatar     = document.getElementById('userAvatar');
+const userName       = document.getElementById('userName');
 const form           = document.getElementById('transactionForm');
 const inputName      = document.getElementById('itemName');
 const inputAmount    = document.getElementById('amount');
@@ -56,21 +65,83 @@ const expenseEmpty   = document.getElementById('chartEmpty');
 const incomeCanvas   = document.getElementById('incomeChart');
 const incomeEmpty    = document.getElementById('incomeChartEmpty');
 
-// ── Init ───────────────────────────────────────────────────
-(function init() {
-  applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+// ── Theme (init early so login page also gets theme) ───────
+applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+
+// ── Handle redirect result after Google login ──────────────
+getRedirectResult(auth).catch((err) => {
+  console.error('Redirect result error:', err);
+});
+
+// ── Auth State Observer ────────────────────────────────────
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+    showApp(user);
+  } else {
+    currentUser = null;
+    showLogin();
+  }
+});
+
+// ── Login / Logout ─────────────────────────────────────────
+btnLogin.addEventListener('click', async () => {
+  try {
+    btnLogin.disabled = true;
+    btnLogin.textContent = 'Menghubungkan...';
+    await signInWithRedirect(auth, provider);
+  } catch (err) {
+    console.error('Login error:', err);
+    btnLogin.disabled = false;
+    btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
+  }
+});
+
+btnLogout.addEventListener('click', async () => {
+  if (unsubscribe) unsubscribe();
+  await signOut(auth);
+});
+
+// ── Show / Hide Screens ────────────────────────────────────
+function showLogin() {
+  loginScreen.style.display = 'flex';
+  appScreen.style.display   = 'none';
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  transactions = [];
+  btnLogin.disabled = false;
+  btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
+}
+
+function showApp(user) {
+  loginScreen.style.display = 'none';
+  appScreen.style.display   = 'block';
+
+  // Update user info in header
+  userName.textContent = user.displayName || user.email;
+  if (user.photoURL) {
+    userAvatar.src = user.photoURL;
+    userAvatar.style.display = 'block';
+  } else {
+    userAvatar.style.display = 'none';
+  }
+
+  // Init app
   inputDate.value = todayISO();
   populateCategories('Pengeluaran');
   bindTypeToggle();
   bindFilterTabs();
   bindAmountMask();
-  listenToFirestore();
-})();
+  listenToFirestore(user.uid);
+}
 
-// ── Firestore Realtime Listener ────────────────────────────
-function listenToFirestore() {
-  const q = query(collection(db, TX_COLLECTION), orderBy('date', 'asc'));
-  onSnapshot(q, (snapshot) => {
+// ── Firestore Realtime Listener (per user) ─────────────────
+function listenToFirestore(uid) {
+  if (unsubscribe) unsubscribe();
+  const q = query(
+    collection(db, 'users', uid, 'transactions'),
+    orderBy('date', 'asc')
+  );
+  unsubscribe = onSnapshot(q, (snapshot) => {
     transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
   }, (err) => {
@@ -94,7 +165,7 @@ function applyTheme(theme) {
 
   if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
   if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
-  renderCharts();
+  if (currentUser) renderCharts();
 }
 
 function toggleTheme() {
@@ -167,21 +238,21 @@ function bindAmountMask() {
 // ── Handlers ───────────────────────────────────────────────
 async function handleSubmit(e) {
   e.preventDefault();
-  if (!validateForm()) return;
+  if (!validateForm() || !currentUser) return;
 
   const tx = {
-    type:     activeType,
-    name:     inputName.value.trim(),
-    amount:   parseInt(rawAmount, 10),
-    category: inputCategory.value,
-    date:     inputDate.value,
+    type:      activeType,
+    name:      inputName.value.trim(),
+    amount:    parseInt(rawAmount, 10),
+    category:  inputCategory.value,
+    date:      inputDate.value,
     createdAt: Date.now(),
   };
 
   try {
     btnSubmit.disabled = true;
     btnSubmit.textContent = 'Menyimpan...';
-    await addDoc(collection(db, TX_COLLECTION), tx);
+    await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), tx);
     form.reset();
     rawAmount = '';
     inputDate.value = todayISO();
@@ -196,8 +267,9 @@ async function handleSubmit(e) {
 }
 
 async function handleDelete(id) {
+  if (!currentUser) return;
   try {
-    await deleteDoc(doc(db, TX_COLLECTION, id));
+    await deleteDoc(doc(db, 'users', currentUser.uid, 'transactions', id));
   } catch (err) {
     console.error('Gagal menghapus:', err);
     alert('Gagal menghapus transaksi. Cek koneksi internet.');
@@ -241,7 +313,6 @@ function validateForm() {
   return valid;
 }
 
-// Clear validation on input (non-amount fields)
 [inputName, inputCategory, inputDate].forEach(el => {
   el.addEventListener('input',  () => el.classList.remove('invalid'));
   el.addEventListener('change', () => el.classList.remove('invalid'));
@@ -312,18 +383,18 @@ function renderList() {
 
 function renderCharts() {
   renderPieChart({
-    txList:   transactions.filter(tx => tx.type === 'Pengeluaran'),
-    cats:     EXPENSE_CATEGORIES,
-    canvas:   expenseCanvas,
-    emptyEl:  expenseEmpty,
-    ref:      'expense',
+    txList:  transactions.filter(tx => tx.type === 'Pengeluaran'),
+    cats:    EXPENSE_CATEGORIES,
+    canvas:  expenseCanvas,
+    emptyEl: expenseEmpty,
+    ref:     'expense',
   });
   renderPieChart({
-    txList:   transactions.filter(tx => tx.type === 'Pendapatan'),
-    cats:     INCOME_CATEGORIES,
-    canvas:   incomeCanvas,
-    emptyEl:  incomeEmpty,
-    ref:      'income',
+    txList:  transactions.filter(tx => tx.type === 'Pendapatan'),
+    cats:    INCOME_CATEGORIES,
+    canvas:  incomeCanvas,
+    emptyEl: incomeEmpty,
+    ref:     'income',
   });
 }
 
@@ -342,7 +413,7 @@ function renderPieChart({ txList, cats, canvas, emptyEl, ref }) {
   const existing = ref === 'expense' ? expenseChart : incomeChart;
 
   if (!hasData) {
-    if (existing) { existing.destroy(); }
+    if (existing) existing.destroy();
     if (ref === 'expense') expenseChart = null;
     else incomeChart = null;
     return;
