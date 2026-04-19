@@ -7,7 +7,7 @@ import {
   db, auth, provider,
   collection, addDoc, deleteDoc, doc,
   onSnapshot, query, orderBy,
-  signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+  signInWithPopup, signOut, onAuthStateChanged,
 } from "./firebase.js";
 
 // ── Constants ──────────────────────────────────────────────
@@ -27,53 +27,60 @@ const INCOME_CATEGORIES = {
 };
 
 // ── State ──────────────────────────────────────────────────
-let transactions  = [];
-let activeType    = 'Pengeluaran';
-let activeFilter  = 'Semua';
-let rawAmount     = '';
-let expenseChart  = null;
-let incomeChart   = null;
-let currentUser   = null;
-let unsubscribe   = null; // Firestore listener cleanup
+let transactions = [];
+let activeType   = 'Pengeluaran';
+let activeFilter = 'Semua';
+let rawAmount    = '';
+let expenseChart = null;
+let incomeChart  = null;
+let currentUser  = null;
+let unsubscribe  = null;
 
-// ── DOM References ─────────────────────────────────────────
-const htmlEl         = document.documentElement;
-const loginScreen    = document.getElementById('loginScreen');
-const appScreen      = document.getElementById('appScreen');
-const btnLogin       = document.getElementById('btnLogin');
-const btnLogout      = document.getElementById('btnLogout');
-const userAvatar     = document.getElementById('userAvatar');
-const userName       = document.getElementById('userName');
-const form           = document.getElementById('transactionForm');
-const inputName      = document.getElementById('itemName');
-const inputAmount    = document.getElementById('amount');
-const inputCategory  = document.getElementById('category');
-const inputDate      = document.getElementById('txDate');
-const inputType      = document.getElementById('txType');
-const listEl         = document.getElementById('transactionList');
-const emptyState     = document.getElementById('emptyState');
-const totalIncomeEl  = document.getElementById('totalIncome');
-const totalExpenseEl = document.getElementById('totalExpense');
-const totalBalanceEl = document.getElementById('totalBalance');
-const balanceCard    = document.getElementById('balanceCard');
-const btnSubmit      = document.getElementById('btnSubmit');
-const btnExport      = document.getElementById('btnExport');
-const btnTheme       = document.getElementById('btnTheme');
-const themeIcon      = document.getElementById('themeIcon');
-const expenseCanvas  = document.getElementById('spendingChart');
-const expenseEmpty   = document.getElementById('chartEmpty');
-const incomeCanvas   = document.getElementById('incomeChart');
-const incomeEmpty    = document.getElementById('incomeChartEmpty');
+// ── DOM — always present ───────────────────────────────────
+const htmlEl      = document.documentElement;
+const loginScreen = document.getElementById('loginScreen');
+const appScreen   = document.getElementById('appScreen');
+const btnLogin    = document.getElementById('btnLogin');
+const themeIcon   = document.getElementById('themeIcon');
+const btnTheme    = document.getElementById('btnTheme');
 
-// ── Theme (init early so login page also gets theme) ───────
+// ── DOM — inside appScreen (grabbed after show) ────────────
+let btnLogout, userAvatar, userName;
+let form, inputName, inputAmount, inputCategory, inputDate, inputType;
+let listEl, emptyState;
+let totalIncomeEl, totalExpenseEl, totalBalanceEl, balanceCard;
+let btnSubmit, btnExport;
+let expenseCanvas, expenseEmpty, incomeCanvas, incomeEmpty;
+
+function grabAppDom() {
+  btnLogout      = document.getElementById('btnLogout');
+  userAvatar     = document.getElementById('userAvatar');
+  userName       = document.getElementById('userName');
+  form           = document.getElementById('transactionForm');
+  inputName      = document.getElementById('itemName');
+  inputAmount    = document.getElementById('amount');
+  inputCategory  = document.getElementById('category');
+  inputDate      = document.getElementById('txDate');
+  inputType      = document.getElementById('txType');
+  listEl         = document.getElementById('transactionList');
+  emptyState     = document.getElementById('emptyState');
+  totalIncomeEl  = document.getElementById('totalIncome');
+  totalExpenseEl = document.getElementById('totalExpense');
+  totalBalanceEl = document.getElementById('totalBalance');
+  balanceCard    = document.getElementById('balanceCard');
+  btnSubmit      = document.getElementById('btnSubmit');
+  btnExport      = document.getElementById('btnExport');
+  expenseCanvas  = document.getElementById('spendingChart');
+  expenseEmpty   = document.getElementById('chartEmpty');
+  incomeCanvas   = document.getElementById('incomeChart');
+  incomeEmpty    = document.getElementById('incomeChartEmpty');
+}
+
+// ── Theme (early, affects login page too) ─────────────────
 applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+btnTheme.addEventListener('click', toggleTheme);
 
-// ── Handle redirect result after Google login ──────────────
-getRedirectResult(auth).catch((err) => {
-  console.error('Redirect result error:', err);
-});
-
-// ── Auth State Observer ────────────────────────────────────
+// ── Auth State ─────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
@@ -84,22 +91,20 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// ── Login / Logout ─────────────────────────────────────────
+// ── Login ──────────────────────────────────────────────────
 btnLogin.addEventListener('click', async () => {
   try {
     btnLogin.disabled = true;
     btnLogin.textContent = 'Menghubungkan...';
-    await signInWithRedirect(auth, provider);
+    await signInWithPopup(auth, provider);
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('Login error:', err.code, err.message);
     btnLogin.disabled = false;
     btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
+    if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+      alert('Login gagal: ' + err.message);
+    }
   }
-});
-
-btnLogout.addEventListener('click', async () => {
-  if (unsubscribe) unsubscribe();
-  await signOut(auth);
 });
 
 // ── Show / Hide Screens ────────────────────────────────────
@@ -116,7 +121,10 @@ function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
 
-  // Update user info in header
+  // Grab DOM now that appScreen is visible
+  grabAppDom();
+
+  // User info
   userName.textContent = user.displayName || user.email;
   if (user.photoURL) {
     userAvatar.src = user.photoURL;
@@ -125,7 +133,17 @@ function showApp(user) {
     userAvatar.style.display = 'none';
   }
 
-  // Init app
+  // Logout
+  btnLogout.addEventListener('click', async () => {
+    if (unsubscribe) unsubscribe();
+    await signOut(auth);
+  });
+
+  // Form events
+  form.addEventListener('submit', handleSubmit);
+  btnExport.addEventListener('click', handleExport);
+
+  // Init
   inputDate.value = todayISO();
   populateCategories('Pengeluaran');
   bindTypeToggle();
@@ -134,7 +152,7 @@ function showApp(user) {
   listenToFirestore(user.uid);
 }
 
-// ── Firestore Realtime Listener (per user) ─────────────────
+// ── Firestore Realtime Listener ────────────────────────────
 function listenToFirestore(uid) {
   if (unsubscribe) unsubscribe();
   const q = query(
@@ -149,19 +167,13 @@ function listenToFirestore(uid) {
   });
 }
 
-// ── Event Listeners ────────────────────────────────────────
-form.addEventListener('submit', handleSubmit);
-btnExport.addEventListener('click', handleExport);
-btnTheme.addEventListener('click', toggleTheme);
-
 // ── Theme ──────────────────────────────────────────────────
 function applyTheme(theme) {
   htmlEl.setAttribute('data-theme', theme);
-  themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+  if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
   localStorage.setItem(THEME_KEY, theme);
 
-  const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
-  Chart.defaults.color = textColor;
+  Chart.defaults.color = theme === 'dark' ? '#94a3b8' : '#64748b';
 
   if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
   if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
@@ -169,8 +181,7 @@ function applyTheme(theme) {
 }
 
 function toggleTheme() {
-  const current = htmlEl.getAttribute('data-theme');
-  applyTheme(current === 'dark' ? 'light' : 'dark');
+  applyTheme(htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 }
 
 // ── Type Toggle ────────────────────────────────────────────
@@ -182,14 +193,8 @@ function bindTypeToggle() {
       activeType = btn.dataset.type;
       inputType.value = activeType;
       populateCategories(activeType);
-
-      if (activeType === 'Pendapatan') {
-        btnSubmit.classList.add('income-mode');
-        btnSubmit.textContent = '+ Tambah Pendapatan';
-      } else {
-        btnSubmit.classList.remove('income-mode');
-        btnSubmit.textContent = '+ Tambah Pengeluaran';
-      }
+      btnSubmit.classList.toggle('income-mode', activeType === 'Pendapatan');
+      btnSubmit.textContent = activeType === 'Pendapatan' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran';
     });
   });
 }
@@ -312,11 +317,6 @@ function validateForm() {
 
   return valid;
 }
-
-[inputName, inputCategory, inputDate].forEach(el => {
-  el.addEventListener('input',  () => el.classList.remove('invalid'));
-  el.addEventListener('change', () => el.classList.remove('invalid'));
-});
 
 // ── Render ─────────────────────────────────────────────────
 function render() {

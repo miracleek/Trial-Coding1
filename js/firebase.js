@@ -15,8 +15,7 @@ import {
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -35,10 +34,11 @@ const app      = initializeApp(firebaseConfig);
 const db       = getFirestore(app);
 const auth     = getAuth(app);
 const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
 
 export {
   db, auth, provider,
   collection, addDoc, deleteDoc, doc,
   onSnapshot, query, orderBy,
-  signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+  signInWithPopup, signOut, onAuthStateChanged,
 };
