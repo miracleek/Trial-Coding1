@@ -1,4 +1,4 @@
-/* ===========================
+﻿/* ===========================
    Finance Tracker — app.js
    Vanilla JS | Firebase Auth + Firestore
 =========================== */
@@ -8,95 +8,194 @@ import {
   collection, addDoc, deleteDoc, doc,
   onSnapshot, query, orderBy,
   signInWithPopup, signOut, onAuthStateChanged,
+  setDoc, getDoc, getDocs, updateDoc,
 } from "./firebase.js";
 
 // ── Constants ──────────────────────────────────────────────
-const THEME_KEY = 'finance_tracker_theme';
+const THEME_KEY  = 'finance_tracker_theme';
+const ADMIN_EMAIL = 'eduworkrin@gmail.com';
 
-const EXPENSE_CATEGORIES = {
-  Makan:        { icon: '🍽️', color: '#f97316' },
-  Transportasi: { icon: '🚗', color: '#3b82f6' },
-  Transfer:     { icon: '💸', color: '#8b5cf6' },
-};
+// Default categories seeded on first login
+const DEFAULT_EXPENSE_CATS = [
+  { name: 'Makan',        icon: 'food',   color: '#f97316', type: 'Pengeluaran' },
+  { name: 'Transportasi', icon: 'car',    color: '#3b82f6', type: 'Pengeluaran' },
+  { name: 'Transfer',     icon: 'money',  color: '#8b5cf6', type: 'Pengeluaran' },
+];
+const DEFAULT_INCOME_CATS = [
+  { name: 'Gaji',      icon: 'work',   color: '#10b981', type: 'Pendapatan' },
+  { name: 'Freelance', icon: 'laptop', color: '#06b6d4', type: 'Pendapatan' },
+  { name: 'Investasi', icon: 'chart',  color: '#f59e0b', type: 'Pendapatan' },
+  { name: 'Lainnya',   icon: 'plus',   color: '#6b7280', type: 'Pendapatan' },
+];
 
-const INCOME_CATEGORIES = {
-  Gaji:      { icon: '💼', color: '#10b981' },
-  Freelance: { icon: '💻', color: '#06b6d4' },
-  Investasi: { icon: '📈', color: '#f59e0b' },
-  Lainnya:   { icon: '➕', color: '#6b7280' },
+// Icon map (emoji) — used when rendering
+const ICON_MAP = {
+  food:'🍽️', car:'🚗', money:'💸', work:'💼',
+  laptop:'💻', chart:'📈', plus:'➕', star:'⭐',
+  home:'🏠', health:'💊', shop:'🛍️', fun:'🎮',
+  edu:'📚', gift:'🎁', pet:'🐾', travel:'✈️',
 };
 
 // ── State ──────────────────────────────────────────────────
-let transactions = [];
-let activeType   = 'Pengeluaran';
-let activeFilter = 'Semua';
-let rawAmount    = '';
-let expenseChart = null;
-let incomeChart  = null;
-let currentUser  = null;
-let unsubscribe  = null;
+let transactions    = [];
+let categories      = [];
+let currentUser     = null;
+let currentUserRole = 'user';
+let activePage      = 'dashboard';
+let reportFilter    = 'Semua';
+let reportMonth     = '';
+let catFilter       = 'Pengeluaran';
+let rawIncomeAmt    = '';
+let rawExpenseAmt   = '';
+let expenseChart    = null;
+let incomeChart     = null;
+let unsubTx         = null;
+let unsubCats       = null;
+let editingCatId    = null;
 
-// ── DOM — always present ───────────────────────────────────
-const htmlEl      = document.documentElement;
-const loginScreen = document.getElementById('loginScreen');
-const appScreen   = document.getElementById('appScreen');
-const btnLogin    = document.getElementById('btnLogin');
 
-// Theme buttons (one on login, one on app)
-const btnThemeLogin = document.getElementById('btnTheme');
+// ── DOM ────────────────────────────────────────────────────
+const htmlEl         = document.documentElement;
+const loginScreen    = document.getElementById('loginScreen');
+const appScreen      = document.getElementById('appScreen');
+const btnLogin       = document.getElementById('btnLogin');
+const btnThemeLogin  = document.getElementById('btnTheme');
 const themeIconLogin = document.getElementById('themeIcon');
-const btnThemeApp   = document.getElementById('btnThemeApp');
-const themeIconApp  = document.getElementById('themeIconApp');
+const btnThemeApp    = document.getElementById('btnThemeApp');
+const themeIconApp   = document.getElementById('themeIconApp');
+const sidebar        = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-// ── Theme (runs immediately, affects both screens) ─────────
+// ── Theme ──────────────────────────────────────────────────
 applyTheme(localStorage.getItem(THEME_KEY) || 'light');
 btnThemeLogin.addEventListener('click', toggleTheme);
 btnThemeApp.addEventListener('click', toggleTheme);
 
-// ── Auth State Listener ────────────────────────────────────
-onAuthStateChanged(auth, (user) => {
+function applyTheme(theme) {
+  htmlEl.setAttribute('data-theme', theme);
+  const icon = theme === 'dark' ? '☀️' : '🌙';
+  if (themeIconLogin) themeIconLogin.textContent = icon;
+  if (themeIconApp)   themeIconApp.textContent   = icon;
+  localStorage.setItem(THEME_KEY, theme);
+  Chart.defaults.color = theme === 'dark' ? '#94a3b8' : '#64748b';
+  if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
+  if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
+  if (currentUser && activePage === 'dashboard') renderCharts();
+}
+
+function toggleTheme() {
+  applyTheme(htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+
+// ── Sidebar ────────────────────────────────────────────────
+document.getElementById('btnHamburger').addEventListener('click', () => {
+  sidebar.classList.add('open');
+  sidebarOverlay.classList.add('visible');
+});
+document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
+sidebarOverlay.addEventListener('click', closeSidebar);
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  sidebarOverlay.classList.remove('visible');
+}
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    navigateTo(btn.dataset.page);
+    closeSidebar();
+  });
+});
+
+function navigateTo(page) {
+  activePage = page;
+  document.querySelectorAll('.nav-item').forEach(b =>
+    b.classList.toggle('active', b.dataset.page === page)
+  );
+  document.querySelectorAll('.page').forEach(p =>
+    p.classList.toggle('active', p.id === 'page-' + page)
+  );
+  if (page === 'dashboard') renderCharts();
+  if (page === 'report')    renderReport();
+  if (page === 'users')     renderUsers();
+  if (page === 'categories') renderCategoryList();
+}
+
+// ── Auth ───────────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    await registerOrUpdateUser(user);
+    const role = await getUserRole(user.uid);
+    currentUserRole = role;
     showApp(user);
   } else {
     currentUser = null;
+    currentUserRole = 'user';
     showLogin();
   }
 });
 
-// ── Login ──────────────────────────────────────────────────
 btnLogin.addEventListener('click', async () => {
   try {
     btnLogin.disabled = true;
     btnLogin.textContent = 'Menghubungkan...';
     await signInWithPopup(auth, provider);
-    // onAuthStateChanged handles the rest
   } catch (err) {
     console.error('Login error:', err.code, err.message);
     btnLogin.disabled = false;
-    btnLogin.innerHTML = `
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
-      Masuk dengan Google`;
+    btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
     if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
       alert('Login gagal. Coba lagi.');
     }
   }
 });
 
+// ── Register / update user in Firestore ────────────────────
+async function registerOrUpdateUser(user) {
+  try {
+    const ref  = doc(db, 'appUsers', user.uid);
+    const snap = await getDoc(ref);
+    const now  = Date.now();
+    const isAdmin = user.email === ADMIN_EMAIL;
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        uid:         user.uid,
+        displayName: user.displayName || '',
+        email:       user.email || '',
+        photoURL:    user.photoURL || '',
+        role:        isAdmin ? 'admin' : 'user',
+        status:      'active',
+        firstLogin:  now,
+        lastLogin:   now,
+      });
+    } else {
+      const updates = { lastLogin: now, displayName: user.displayName || '', photoURL: user.photoURL || '' };
+      if (isAdmin && snap.data().role !== 'admin') updates.role = 'admin';
+      await updateDoc(ref, updates);
+    }
+  } catch (err) { console.error('registerOrUpdateUser:', err); }
+}
+
+async function getUserRole(uid) {
+  try {
+    const snap = await getDoc(doc(db, 'appUsers', uid));
+    return snap.exists() ? (snap.data().role || 'user') : 'user';
+  } catch { return 'user'; }
+}
+
+
 // ── Show Login ─────────────────────────────────────────────
 function showLogin() {
   loginScreen.style.display = 'flex';
   appScreen.style.display   = 'none';
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  transactions = [];
-  // Reset charts
+  if (unsubTx)   { unsubTx();   unsubTx   = null; }
+  if (unsubCats) { unsubCats(); unsubCats = null; }
+  transactions = []; categories = [];
   if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
   if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
-  // Reset login button
   btnLogin.disabled = false;
-  btnLogin.innerHTML = `
-    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
-    Masuk dengan Google`;
+  btnLogin.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" /> Masuk dengan Google';
 }
 
 // ── Show App ───────────────────────────────────────────────
@@ -104,396 +203,528 @@ function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
 
-  // User info
   document.getElementById('userName').textContent = user.displayName || user.email;
+  document.getElementById('userRoleBadge').textContent = currentUserRole === 'admin' ? '👑 Admin' : '👤 User';
   const avatarEl = document.getElementById('userAvatar');
-  if (user.photoURL) {
-    avatarEl.src = user.photoURL;
-    avatarEl.style.display = 'block';
-  } else {
-    avatarEl.style.display = 'none';
-  }
+  if (user.photoURL) { avatarEl.src = user.photoURL; avatarEl.style.display = 'block'; }
+  else { avatarEl.style.display = 'none'; }
 
-  // Logout
+  // Show/hide admin-only nav items
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = currentUserRole === 'admin' ? '' : 'none';
+  });
+
   document.getElementById('btnLogout').addEventListener('click', async () => {
-    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (unsubTx)   { unsubTx();   unsubTx   = null; }
+    if (unsubCats) { unsubCats(); unsubCats = null; }
     await signOut(auth);
   });
 
-  // Form & export
-  document.getElementById('transactionForm').addEventListener('submit', handleSubmit);
+  document.getElementById('incomeDate').value  = todayISO();
+  document.getElementById('expenseDate').value = todayISO();
+
+  document.getElementById('incomeForm').addEventListener('submit',   handleIncomeSubmit);
+  document.getElementById('expenseForm').addEventListener('submit',  handleExpenseSubmit);
+  document.getElementById('categoryForm').addEventListener('submit', handleCategorySubmit);
+
+  bindAmountMask('incomeAmount',  () => rawIncomeAmt,  v => { rawIncomeAmt  = v; });
+  bindAmountMask('expenseAmount', () => rawExpenseAmt, v => { rawExpenseAmt = v; });
+
+  // Report filter tabs
+  document.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      reportFilter = btn.dataset.filter;
+      renderReport();
+    });
+  });
+  document.getElementById('reportMonth').addEventListener('change', e => {
+    reportMonth = e.target.value;
+    renderReport();
+  });
   document.getElementById('btnExport').addEventListener('click', handleExport);
 
-  // Init form
-  document.getElementById('txDate').value = todayISO();
-  populateCategories('Pengeluaran');
-  bindTypeToggle();
-  bindFilterTabs();
-  bindAmountMask();
-
-  // Start listening to Firestore
-  listenToFirestore(user.uid);
-}
-
-// ── Firestore Realtime Listener ────────────────────────────
-function listenToFirestore(uid) {
-  if (unsubscribe) unsubscribe();
-  const q = query(
-    collection(db, 'users', uid, 'transactions'),
-    orderBy('date', 'asc')
-  );
-  unsubscribe = onSnapshot(q, (snapshot) => {
-    transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
-  }, (err) => {
-    console.error('Firestore listener error:', err);
-  });
-}
-
-// ── Theme ──────────────────────────────────────────────────
-function applyTheme(theme) {
-  htmlEl.setAttribute('data-theme', theme);
-  const icon = theme === 'dark' ? '☀️' : '🌙';
-  if (themeIconLogin) themeIconLogin.textContent = icon;
-  if (themeIconApp)   themeIconApp.textContent   = icon;
-  localStorage.setItem(THEME_KEY, theme);
-
-  Chart.defaults.color = theme === 'dark' ? '#94a3b8' : '#64748b';
-
-  if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
-  if (incomeChart)  { incomeChart.destroy();  incomeChart  = null; }
-  if (currentUser) renderCharts();
-}
-
-function toggleTheme() {
-  applyTheme(htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-}
-
-// ── Type Toggle ────────────────────────────────────────────
-function bindTypeToggle() {
-  document.querySelectorAll('.type-btn').forEach(btn => {
+  // Category filter tabs
+  document.querySelectorAll('[data-cat-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-cat-filter]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      activeType = btn.dataset.type;
-      document.getElementById('txType').value = activeType;
-      populateCategories(activeType);
-      const btnSubmit = document.getElementById('btnSubmit');
-      btnSubmit.classList.toggle('income-mode', activeType === 'Pendapatan');
-      btnSubmit.textContent = activeType === 'Pendapatan' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran';
+      catFilter = btn.dataset.catFilter;
+      renderCategoryList();
     });
   });
+
+  // Dashboard period filter
+  document.getElementById('dashPeriod').addEventListener('change', () => renderCharts());
+
+  // User search
+  document.getElementById('userSearch').addEventListener('input', renderUsers);
+
+  listenCategories(user.uid);
+  listenTransactions(user.uid);
 }
 
-function populateCategories(type) {
-  const cats = type === 'Pendapatan' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  const sel  = document.getElementById('category');
-  sel.innerHTML = '<option value="">-- Pilih Kategori --</option>';
-  Object.entries(cats).forEach(([name, { icon }]) => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${icon} ${name}`;
-    sel.appendChild(opt);
-  });
-  sel.classList.remove('invalid');
-  document.getElementById('err-category').textContent = '';
+// ── Firestore Listeners ────────────────────────────────────
+function listenTransactions(uid) {
+  if (unsubTx) unsubTx();
+  const q = query(collection(db, 'users', uid, 'transactions'), orderBy('date', 'asc'));
+  unsubTx = onSnapshot(q, snap => {
+    transactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSummary();
+    renderIncomeList();
+    renderExpenseList();
+    if (activePage === 'dashboard') renderCharts();
+    if (activePage === 'report')    renderReport();
+  }, err => console.error('tx listener:', err));
 }
 
-// ── Filter Tabs ────────────────────────────────────────────
-function bindFilterTabs() {
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeFilter = btn.dataset.filter;
-      renderList();
-    });
-  });
-}
-
-// ── Amount Masking ─────────────────────────────────────────
-function bindAmountMask() {
-  const inputAmount = document.getElementById('amount');
-  inputAmount.addEventListener('input', () => {
-    const digits = inputAmount.value.replace(/\D/g, '');
-    rawAmount = digits;
-    inputAmount.value = digits === '' ? '' : parseInt(digits, 10).toLocaleString('id-ID');
-    inputAmount.closest('.amount-wrapper').classList.remove('invalid');
-    document.getElementById('err-amount').textContent = '';
-  });
-  inputAmount.addEventListener('keydown', (e) => {
-    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
-    if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
-  });
-}
-
-// ── Submit Handler ─────────────────────────────────────────
-async function handleSubmit(e) {
-  e.preventDefault();
-  if (!validateForm() || !currentUser) return;
-
-  const btnSubmit = document.getElementById('btnSubmit');
-  const tx = {
-    type:      activeType,
-    name:      document.getElementById('itemName').value.trim(),
-    amount:    parseInt(rawAmount, 10),
-    category:  document.getElementById('category').value,
-    date:      document.getElementById('txDate').value,
-    createdAt: Date.now(),
-  };
-
-  try {
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = 'Menyimpan...';
-    await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), tx);
-    e.target.reset();
-    rawAmount = '';
-    document.getElementById('txDate').value = todayISO();
-    populateCategories(activeType);
-  } catch (err) {
-    console.error('Gagal menyimpan:', err);
-    alert('Gagal menyimpan transaksi. Cek koneksi internet.');
-  } finally {
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = activeType === 'Pendapatan' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran';
-  }
-}
-
-// ── Delete Handler ─────────────────────────────────────────
-async function handleDelete(id) {
-  if (!currentUser) return;
-  try {
-    await deleteDoc(doc(db, 'users', currentUser.uid, 'transactions', id));
-  } catch (err) {
-    console.error('Gagal menghapus:', err);
-    alert('Gagal menghapus transaksi.');
-  }
-}
-
-// ── Validation ─────────────────────────────────────────────
-function validateForm() {
-  let valid = true;
-
-  const fields = [
-    { id: 'itemName',  errId: 'err-itemName', msg: 'Nama item wajib diisi.' },
-    { id: 'category',  errId: 'err-category', msg: 'Pilih kategori terlebih dahulu.' },
-    { id: 'txDate',    errId: 'err-txDate',   msg: 'Tanggal wajib diisi.' },
-  ];
-
-  fields.forEach(({ id, errId, msg }) => {
-    const el    = document.getElementById(id);
-    const errEl = document.getElementById(errId);
-    if (!el.value.trim()) {
-      el.classList.add('invalid');
-      errEl.textContent = msg;
-      valid = false;
-    } else {
-      el.classList.remove('invalid');
-      errEl.textContent = '';
+function listenCategories(uid) {
+  if (unsubCats) unsubCats();
+  const q = query(collection(db, 'users', uid, 'categories'), orderBy('name', 'asc'));
+  unsubCats = onSnapshot(q, async snap => {
+    categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Seed defaults if empty
+    if (categories.length === 0) {
+      await seedDefaultCategories(uid);
+      return;
     }
-  });
+    populateCategorySelect('incomeCategory',  'Pendapatan');
+    populateCategorySelect('expenseCategory', 'Pengeluaran');
+    if (activePage === 'categories') renderCategoryList();
+  }, err => console.error('cats listener:', err));
+}
 
-  const inputAmount   = document.getElementById('amount');
-  const amountWrapper = inputAmount.closest('.amount-wrapper');
-  const amountErrEl   = document.getElementById('err-amount');
-  const amountVal     = parseInt(rawAmount, 10);
-  if (!rawAmount || isNaN(amountVal) || amountVal <= 0) {
-    amountWrapper.classList.add('invalid');
-    amountErrEl.textContent = 'Jumlah wajib diisi dan harus lebih dari 0.';
-    valid = false;
-  } else {
-    amountWrapper.classList.remove('invalid');
-    amountErrEl.textContent = '';
+async function seedDefaultCategories(uid) {
+  const all = [...DEFAULT_EXPENSE_CATS, ...DEFAULT_INCOME_CATS];
+  for (const cat of all) {
+    await addDoc(collection(db, 'users', uid, 'categories'), cat);
   }
-
-  return valid;
 }
 
-// ── Render ─────────────────────────────────────────────────
-function render() {
-  renderSummary();
-  renderList();
-  renderCharts();
-}
 
+// ── Summary ────────────────────────────────────────────────
 function renderSummary() {
-  const income  = transactions.filter(tx => tx.type === 'Pendapatan').reduce((s, tx) => s + tx.amount, 0);
-  const expense = transactions.filter(tx => tx.type === 'Pengeluaran').reduce((s, tx) => s + tx.amount, 0);
+  const income  = transactions.filter(t => t.type === 'Pendapatan').reduce((s, t) => s + t.amount, 0);
+  const expense = transactions.filter(t => t.type === 'Pengeluaran').reduce((s, t) => s + t.amount, 0);
   const balance = income - expense;
-
   document.getElementById('totalIncome').textContent  = formatRupiah(income);
   document.getElementById('totalExpense').textContent = formatRupiah(expense);
   document.getElementById('totalBalance').textContent = (balance < 0 ? '- ' : '') + formatRupiah(Math.abs(balance));
   document.getElementById('balanceCard').classList.toggle('negative', balance < 0);
 }
 
-function renderList() {
-  const listEl = document.getElementById('transactionList');
-  Array.from(listEl.querySelectorAll('.transaction-item')).forEach(el => el.remove());
+// ── Category Selects ───────────────────────────────────────
+function populateCategorySelect(selectId, type) {
+  const sel  = document.getElementById(selectId);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- Pilih Kategori --</option>';
+  categories.filter(c => c.type === type).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
 
-  const filtered = (activeFilter === 'Semua'
-    ? transactions
-    : transactions.filter(tx => tx.type === activeFilter)
-  ).slice().sort((a, b) => a.date.localeCompare(b.date));
+function getCatMeta(name) {
+  return categories.find(c => c.name === name) || { icon: 'plus', color: '#94a3b8' };
+}
 
-  document.getElementById('btnExport').disabled = transactions.length === 0;
+// ── Income List ────────────────────────────────────────────
+function renderIncomeList() {
+  const el = document.getElementById('incomeList');
+  const list = transactions.filter(t => t.type === 'Pendapatan').slice().sort((a,b) => b.date.localeCompare(a.date));
+  if (list.length === 0) { el.innerHTML = '<p class="empty-state">Belum ada pendapatan.</p>'; return; }
+  el.innerHTML = list.map(tx => txItemHTML(tx)).join('');
+  el.querySelectorAll('.btn-delete').forEach(btn =>
+    btn.addEventListener('click', () => handleDelete(btn.dataset.id))
+  );
+}
 
-  const emptyState = document.getElementById('emptyState');
-  if (filtered.length === 0) {
-    emptyState.style.display = 'block';
+// ── Expense List ───────────────────────────────────────────
+function renderExpenseList() {
+  const el = document.getElementById('expenseList');
+  const list = transactions.filter(t => t.type === 'Pengeluaran').slice().sort((a,b) => b.date.localeCompare(a.date));
+  if (list.length === 0) { el.innerHTML = '<p class="empty-state">Belum ada pengeluaran.</p>'; return; }
+  el.innerHTML = list.map(tx => txItemHTML(tx)).join('');
+  el.querySelectorAll('.btn-delete').forEach(btn =>
+    btn.addEventListener('click', () => handleDelete(btn.dataset.id))
+  );
+}
+
+function txItemHTML(tx) {
+  const cat     = getCatMeta(tx.category);
+  const icon    = ICON_MAP[cat.icon] || cat.icon || '•';
+  const isInc   = tx.type === 'Pendapatan';
+  return `<div class="transaction-item" style="border-left-color:${cat.color}">
+    <div class="tx-info">
+      <span class="tx-name">${escapeHTML(tx.name)}</span>
+      <div class="tx-meta">
+        <span class="tx-badge" style="background:${cat.color}">${icon} ${escapeHTML(tx.category)}</span>
+        <span>${formatDate(tx.date)}</span>
+      </div>
+    </div>
+    <span class="tx-amount ${isInc ? 'income' : 'expense'}">${isInc ? '+' : '-'} ${formatRupiah(tx.amount)}</span>
+    <button class="btn-delete" data-id="${tx.id}" title="Hapus" aria-label="Hapus">🗑️</button>
+  </div>`;
+}
+
+// ── Report ─────────────────────────────────────────────────
+function renderReport() {
+  const el    = document.getElementById('reportList');
+  const empty = document.getElementById('reportEmpty');
+  let list = transactions.slice().sort((a,b) => b.date.localeCompare(a.date));
+  if (reportFilter !== 'Semua') list = list.filter(t => t.type === reportFilter);
+  if (reportMonth) list = list.filter(t => t.date.startsWith(reportMonth));
+  if (list.length === 0) {
+    el.innerHTML = '';
+    empty.style.display = 'block';
     return;
   }
-  emptyState.style.display = 'none';
-
-  filtered.forEach(tx => {
-    const cats    = tx.type === 'Pendapatan' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-    const catMeta = cats[tx.category] || { icon: '•' };
-    const isIncome = tx.type === 'Pendapatan';
-
-    const item = document.createElement('div');
-    item.className = `transaction-item cat-${tx.category}`;
-    item.dataset.id = tx.id;
-    item.innerHTML = `
-      <div class="tx-info">
-        <span class="tx-name">${escapeHTML(tx.name)}</span>
-        <div class="tx-meta">
-          <span class="tx-type-pill ${tx.type}">${isIncome ? '📥' : '📤'} ${tx.type}</span>
-          <span class="tx-badge badge-${tx.category}">${catMeta.icon} ${tx.category}</span>
-          <span>${formatDate(tx.date)}</span>
-        </div>
-      </div>
-      <span class="tx-amount ${isIncome ? 'income' : 'expense'}">
-        ${isIncome ? '+' : '-'} ${formatRupiah(tx.amount)}
-      </span>
-      <button class="btn-delete" title="Hapus" aria-label="Hapus ${escapeHTML(tx.name)}">🗑️</button>
-    `;
-    item.querySelector('.btn-delete').addEventListener('click', () => handleDelete(tx.id));
-    listEl.appendChild(item);
-  });
+  empty.style.display = 'none';
+  el.innerHTML = list.map(tx => txItemHTML(tx)).join('');
+  el.querySelectorAll('.btn-delete').forEach(btn =>
+    btn.addEventListener('click', () => handleDelete(btn.dataset.id))
+  );
 }
 
+// ── Dashboard Charts ───────────────────────────────────────
 function renderCharts() {
+  const period = document.getElementById('dashPeriod').value; // 'all','month','week'
+  let filtered = transactions.slice();
+  const now = new Date();
+  if (period === 'month') {
+    const ym = now.toISOString().slice(0,7);
+    filtered = filtered.filter(t => t.date.startsWith(ym));
+  } else if (period === 'week') {
+    const weekAgo = new Date(now - 7*24*60*60*1000).toISOString().slice(0,10);
+    filtered = filtered.filter(t => t.date >= weekAgo);
+  }
+
+  const income  = filtered.filter(t => t.type === 'Pendapatan').reduce((s,t) => s+t.amount, 0);
+  const expense = filtered.filter(t => t.type === 'Pengeluaran').reduce((s,t) => s+t.amount, 0);
+
+  document.getElementById('dashIncome').textContent  = formatRupiah(income);
+  document.getElementById('dashExpense').textContent = formatRupiah(expense);
+  document.getElementById('dashBalance').textContent = formatRupiah(Math.abs(income - expense));
+  document.getElementById('dashBalance').className   = 'dash-val ' + (income >= expense ? 'income' : 'expense');
+
   renderPieChart({
-    txList:  transactions.filter(tx => tx.type === 'Pengeluaran'),
-    cats:    EXPENSE_CATEGORIES,
-    canvasId: 'spendingChart',
-    emptyId:  'chartEmpty',
-    ref:     'expense',
+    txList: filtered.filter(t => t.type === 'Pengeluaran'),
+    canvasId: 'spendingChart', emptyId: 'chartEmpty', ref: 'expense',
   });
   renderPieChart({
-    txList:  transactions.filter(tx => tx.type === 'Pendapatan'),
-    cats:    INCOME_CATEGORIES,
-    canvasId: 'incomeChart',
-    emptyId:  'incomeChartEmpty',
-    ref:     'income',
+    txList: filtered.filter(t => t.type === 'Pendapatan'),
+    canvasId: 'incomeChart', emptyId: 'incomeChartEmpty', ref: 'income',
   });
+
+  // Recent 5 transactions
+  const recentEl = document.getElementById('recentList');
+  const recent   = transactions.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+  if (recent.length === 0) { recentEl.innerHTML = '<p class="empty-state">Belum ada transaksi.</p>'; return; }
+  recentEl.innerHTML = recent.map(tx => txItemHTML(tx)).join('');
+  recentEl.querySelectorAll('.btn-delete').forEach(btn =>
+    btn.addEventListener('click', () => handleDelete(btn.dataset.id))
+  );
 }
 
-function renderPieChart({ txList, cats, canvasId, emptyId, ref }) {
+function renderPieChart({ txList, canvasId, emptyId, ref }) {
   const canvas  = document.getElementById(canvasId);
   const emptyEl = document.getElementById(emptyId);
-
-  const totals = {};
+  const totals  = {};
   txList.forEach(tx => { totals[tx.category] = (totals[tx.category] || 0) + tx.amount; });
-
   const labels  = Object.keys(totals);
   const data    = Object.values(totals);
-  const colors  = labels.map(l => cats[l]?.color || '#94a3b8');
+  const colors  = labels.map(l => getCatMeta(l).color || '#94a3b8');
   const hasData = labels.length > 0;
-
   canvas.style.display  = hasData ? 'block' : 'none';
   emptyEl.style.display = hasData ? 'none'  : 'block';
-
   const existing = ref === 'expense' ? expenseChart : incomeChart;
-
   if (!hasData) {
     if (existing) existing.destroy();
-    if (ref === 'expense') expenseChart = null;
-    else incomeChart = null;
+    if (ref === 'expense') expenseChart = null; else incomeChart = null;
     return;
   }
-
   if (existing) {
     existing.data.labels = labels;
     existing.data.datasets[0].data = data;
     existing.data.datasets[0].backgroundColor = colors;
-    existing.update();
-    return;
+    existing.update(); return;
   }
-
   const instance = new Chart(canvas, {
     type: 'pie',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: 'transparent', hoverOffset: 8 }],
-    },
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: 'transparent', hoverOffset: 8 }] },
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { padding: 14, font: { size: 12 }, usePointStyle: true, pointStyleWidth: 10 },
-        },
-        tooltip: {
-          callbacks: {
-            label(ctx) {
-              const val   = ctx.parsed;
-              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-              return ` ${formatRupiah(val)} (${((val / total) * 100).toFixed(1)}%)`;
-            },
-          },
-        },
+        legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 }, usePointStyle: true } },
+        tooltip: { callbacks: { label(ctx) {
+          const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+          return ' ' + formatRupiah(ctx.parsed) + ' (' + ((ctx.parsed/total)*100).toFixed(1) + '%)';
+        }}},
       },
     },
   });
+  if (ref === 'expense') expenseChart = instance; else incomeChart = instance;
+}
 
-  if (ref === 'expense') expenseChart = instance;
-  else incomeChart = instance;
+
+// ── Category CRUD ──────────────────────────────────────────
+function renderCategoryList() {
+  const el   = document.getElementById('categoryList');
+  const list = categories.filter(c => c.type === catFilter);
+  if (list.length === 0) { el.innerHTML = '<p class="empty-state">Belum ada kategori.</p>'; return; }
+  el.innerHTML = list.map(c => {
+    const icon = ICON_MAP[c.icon] || c.icon || '•';
+    return `<div class="cat-item">
+      <span class="cat-swatch" style="background:${c.color}">${icon}</span>
+      <span class="cat-name">${escapeHTML(c.name)}</span>
+      <span class="cat-type-badge ${c.type === 'Pendapatan' ? 'income' : 'expense'}">${c.type}</span>
+      <div class="cat-actions">
+        <button class="btn-cat-edit" data-id="${c.id}" title="Edit">✏️</button>
+        <button class="btn-cat-del"  data-id="${c.id}" title="Hapus">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.btn-cat-edit').forEach(btn =>
+    btn.addEventListener('click', () => startEditCategory(btn.dataset.id))
+  );
+  el.querySelectorAll('.btn-cat-del').forEach(btn =>
+    btn.addEventListener('click', () => deleteCategory(btn.dataset.id))
+  );
+}
+
+async function handleCategorySubmit(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+  const name  = document.getElementById('catName').value.trim();
+  const type  = document.getElementById('catType').value;
+  const icon  = document.getElementById('catIcon').value.trim() || 'plus';
+  const color = document.getElementById('catColor').value;
+  const errEl = document.getElementById('err-catName');
+  if (!name) { errEl.textContent = 'Nama kategori wajib diisi.'; return; }
+  errEl.textContent = '';
+  const btn = document.getElementById('btnSaveCategory');
+  btn.disabled = true;
+  try {
+    if (editingCatId) {
+      await updateDoc(doc(db, 'users', currentUser.uid, 'categories', editingCatId), { name, type, icon, color });
+      editingCatId = null;
+      btn.textContent = '+ Tambah Kategori';
+    } else {
+      await addDoc(collection(db, 'users', currentUser.uid, 'categories'), { name, type, icon, color });
+    }
+    e.target.reset();
+    document.getElementById('catColor').value = '#6366f1';
+  } catch (err) { console.error('save category:', err); alert('Gagal menyimpan kategori.'); }
+  finally { btn.disabled = false; }
+}
+
+function startEditCategory(id) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  editingCatId = id;
+  document.getElementById('catName').value  = cat.name;
+  document.getElementById('catType').value  = cat.type;
+  document.getElementById('catIcon').value  = cat.icon || '';
+  document.getElementById('catColor').value = cat.color || '#6366f1';
+  document.getElementById('btnSaveCategory').textContent = '💾 Simpan Perubahan';
+  document.getElementById('catName').focus();
+}
+
+async function deleteCategory(id) {
+  if (!currentUser || !confirm('Hapus kategori ini?')) return;
+  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'categories', id)); }
+  catch (err) { console.error('delete category:', err); alert('Gagal menghapus.'); }
+}
+
+// ── Transaction Submit ─────────────────────────────────────
+async function handleIncomeSubmit(e) {
+  e.preventDefault();
+  if (!validateTxForm('income')) return;
+  await saveTx({
+    type:     'Pendapatan',
+    name:     document.getElementById('incomeName').value.trim(),
+    amount:   parseInt(rawIncomeAmt, 10),
+    category: document.getElementById('incomeCategory').value,
+    date:     document.getElementById('incomeDate').value,
+  }, 'income');
+}
+
+async function handleExpenseSubmit(e) {
+  e.preventDefault();
+  if (!validateTxForm('expense')) return;
+  await saveTx({
+    type:     'Pengeluaran',
+    name:     document.getElementById('expenseName').value.trim(),
+    amount:   parseInt(rawExpenseAmt, 10),
+    category: document.getElementById('expenseCategory').value,
+    date:     document.getElementById('expenseDate').value,
+  }, 'expense');
+}
+
+async function saveTx(tx, prefix) {
+  if (!currentUser) return;
+  const btn = document.querySelector(`#${prefix}Form button[type=submit]`);
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), { ...tx, createdAt: Date.now() });
+    document.getElementById(`${prefix}Form`).reset();
+    if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = todayISO(); }
+    if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = todayISO(); }
+    populateCategorySelect(`${prefix}Category`, tx.type);
+  } catch (err) { console.error('saveTx:', err); alert('Gagal menyimpan transaksi.'); }
+  finally { btn.disabled = false; btn.textContent = prefix === 'income' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran'; }
+}
+
+async function handleDelete(id) {
+  if (!currentUser) return;
+  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'transactions', id)); }
+  catch (err) { console.error('delete tx:', err); alert('Gagal menghapus.'); }
+}
+
+// ── Validation ─────────────────────────────────────────────
+function validateTxForm(prefix) {
+  let ok = true;
+  const fields = [
+    { id: `${prefix}Name`,     errId: `err-${prefix}Name`,     msg: 'Nama wajib diisi.' },
+    { id: `${prefix}Category`, errId: `err-${prefix}Category`, msg: 'Pilih kategori.' },
+    { id: `${prefix}Date`,     errId: `err-${prefix}Date`,     msg: 'Tanggal wajib diisi.' },
+  ];
+  fields.forEach(({ id, errId, msg }) => {
+    const el = document.getElementById(id);
+    const er = document.getElementById(errId);
+    if (!el.value.trim()) { el.classList.add('invalid'); er.textContent = msg; ok = false; }
+    else { el.classList.remove('invalid'); er.textContent = ''; }
+  });
+  const rawAmt = prefix === 'income' ? rawIncomeAmt : rawExpenseAmt;
+  const amtWrap = document.getElementById(`${prefix}Amount`).closest('.amount-wrapper');
+  const amtErr  = document.getElementById(`err-${prefix}Amount`);
+  if (!rawAmt || isNaN(parseInt(rawAmt,10)) || parseInt(rawAmt,10) <= 0) {
+    amtWrap.classList.add('invalid'); amtErr.textContent = 'Jumlah wajib diisi dan > 0.'; ok = false;
+  } else { amtWrap.classList.remove('invalid'); amtErr.textContent = ''; }
+  return ok;
+}
+
+
+// ── User Management ────────────────────────────────────────
+async function renderUsers() {
+  if (currentUserRole !== 'admin') {
+    document.getElementById('userTable').innerHTML = '<p class="empty-state">Akses ditolak. Hanya admin.</p>';
+    return;
+  }
+  const query_str = (document.getElementById('userSearch').value || '').toLowerCase();
+  try {
+    const snap  = await getDocs(collection(db, 'appUsers'));
+    let users   = snap.docs.map(d => d.data());
+    if (query_str) users = users.filter(u =>
+      (u.displayName || '').toLowerCase().includes(query_str) ||
+      (u.email || '').toLowerCase().includes(query_str)
+    );
+    if (users.length === 0) {
+      document.getElementById('userTable').innerHTML = '<p class="empty-state">Tidak ada user ditemukan.</p>';
+      return;
+    }
+    const rows = users.map(u => `
+      <tr>
+        <td>
+          <div class="user-cell">
+            ${u.photoURL ? `<img src="${escapeHTML(u.photoURL)}" class="user-avatar-sm" alt="" />` : '<span class="user-avatar-sm placeholder">👤</span>'}
+            <div>
+              <div class="user-cell-name">${escapeHTML(u.displayName || '-')}</div>
+              <div class="user-cell-email">${escapeHTML(u.email || '-')}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <select class="role-select" data-uid="${u.uid}" ${u.email === ADMIN_EMAIL ? 'disabled' : ''}>
+            <option value="admin"  ${u.role === 'admin'  ? 'selected' : ''}>👑 Admin</option>
+            <option value="user"   ${u.role === 'user'   ? 'selected' : ''}>👤 User</option>
+            <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>👁️ Viewer</option>
+          </select>
+        </td>
+        <td>
+          <select class="status-select" data-uid="${u.uid}" ${u.email === ADMIN_EMAIL ? 'disabled' : ''}>
+            <option value="active"   ${u.status === 'active'   ? 'selected' : ''}>✅ Aktif</option>
+            <option value="inactive" ${u.status === 'inactive' ? 'selected' : ''}>🚫 Nonaktif</option>
+          </select>
+        </td>
+        <td class="user-date">${u.firstLogin ? new Date(u.firstLogin).toLocaleDateString('id-ID') : '-'}</td>
+        <td class="user-date">${u.lastLogin  ? new Date(u.lastLogin).toLocaleDateString('id-ID')  : '-'}</td>
+        <td>
+          <button class="btn-save-user" data-uid="${u.uid}" ${u.email === ADMIN_EMAIL ? 'disabled' : ''}>💾 Simpan</button>
+        </td>
+      </tr>`).join('');
+
+    document.getElementById('userTable').innerHTML = `
+      <table class="user-table">
+        <thead><tr>
+          <th>User</th><th>Role</th><th>Status</th><th>First Login</th><th>Last Login</th><th>Aksi</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    document.querySelectorAll('.btn-save-user').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid    = btn.dataset.uid;
+        const role   = document.querySelector(`.role-select[data-uid="${uid}"]`).value;
+        const status = document.querySelector(`.status-select[data-uid="${uid}"]`).value;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+          await updateDoc(doc(db, 'appUsers', uid), { role, status });
+          btn.textContent = '✅ Tersimpan';
+          setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Simpan'; }, 1500);
+        } catch (err) { console.error('save user:', err); btn.disabled = false; btn.textContent = '💾 Simpan'; }
+      });
+    });
+  } catch (err) { console.error('renderUsers:', err); }
 }
 
 // ── Export Excel ───────────────────────────────────────────
 function handleExport() {
-  if (transactions.length === 0) return;
-
-  const sorted = transactions.slice().sort((a, b) => a.date.localeCompare(b.date));
-  const header = ['Tanggal', 'Keterangan / Nama Item', 'Tipe Transaksi', 'Kategori', 'Jumlah (Rp)'];
-  const rows   = sorted.map(tx => [formatDate(tx.date), tx.name, tx.type, tx.category, tx.amount]);
-
+  let list = transactions.slice().sort((a,b) => a.date.localeCompare(b.date));
+  if (reportFilter !== 'Semua') list = list.filter(t => t.type === reportFilter);
+  if (reportMonth) list = list.filter(t => t.date.startsWith(reportMonth));
+  if (list.length === 0) { alert('Tidak ada data untuk di-export.'); return; }
+  const header = ['Tanggal','Nama Item','Tipe','Kategori','Jumlah (Rp)'];
+  const rows   = list.map(t => [formatDate(t.date), t.name, t.type, t.category, t.amount]);
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
-
-  header.forEach((_, c) => {
-    const addr = XLSX.utils.encode_cell({ r: 0, c });
-    if (ws[addr]) ws[addr].s = { font: { bold: true } };
-  });
-  for (let r = 1; r <= rows.length; r++) {
-    const addr = XLSX.utils.encode_cell({ r, c: 4 });
-    if (ws[addr]) { ws[addr].t = 'n'; ws[addr].z = '#,##0'; }
-  }
-
+  ws['!cols'] = [{ wch:14 },{ wch:30 },{ wch:14 },{ wch:16 },{ wch:18 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
-  XLSX.writeFile(wb, `finance-tracker-${todayISO()}.xlsx`);
+  XLSX.writeFile(wb, 'finance-tracker-' + todayISO() + '.xlsx');
+}
+
+// ── Amount Mask ────────────────────────────────────────────
+function bindAmountMask(inputId, getVal, setVal) {
+  const input = document.getElementById(inputId);
+  input.addEventListener('input', () => {
+    const digits = input.value.replace(/\D/g, '');
+    setVal(digits);
+    input.value = digits === '' ? '' : parseInt(digits, 10).toLocaleString('id-ID');
+    input.closest('.amount-wrapper').classList.remove('invalid');
+    const errEl = document.getElementById('err-' + inputId);
+    if (errEl) errEl.textContent = '';
+  });
+  input.addEventListener('keydown', e => {
+    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
+    if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+  });
 }
 
 // ── Helpers ────────────────────────────────────────────────
-function formatRupiah(n) {
-  return 'Rp ' + n.toLocaleString('id-ID');
-}
-
+function formatRupiah(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
 function formatDate(iso) {
   if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  const [y,m,d] = iso.split('-');
+  return d + '/' + m + '/' + y;
 }
-
-function todayISO() {
-  return new Date().toISOString().split('T')[0];
-}
-
+function todayISO() { return new Date().toISOString().split('T')[0]; }
 function escapeHTML(str) {
-  return str
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
+
