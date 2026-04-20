@@ -13,18 +13,78 @@
 
 <!-- ── Login Screen ──────────────────────────────────────── -->
 <div id="loginScreen">
-  <div class="login-card">
-    <div class="login-logo">💰</div>
-    <h1 class="login-title">Finance Tracker</h1>
-    <p class="login-subtitle">Catat pemasukan &amp; pengeluaran kamu.<br>Login untuk menyimpan data di semua perangkat.</p>
-    <button class="btn-google" id="btnLogin">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
-      Masuk dengan Google
-    </button>
-    <button class="btn-theme login-theme" id="btnTheme" title="Toggle tema" aria-label="Toggle tema">
-      <span id="themeIcon">🌙</span>
-    </button>
+
+  <!-- Navbar -->
+  <nav class="ls-nav">
+    <div class="ls-nav-inner">
+      <div class="ls-logo">
+        <div class="ls-logo-icon">₿</div>
+        <span class="ls-logo-text">Finance Tracker</span>
+      </div>
+      <button class="btn-theme login-theme" id="btnTheme" title="Toggle tema" aria-label="Toggle tema">
+        <span id="themeIcon">🌙</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="ls-hero">
+    <!-- Left: Branding -->
+    <div class="ls-left">
+      <div class="ls-left-inner">
+        <div class="ls-badge">� Personal Finance</div>
+        <h1 class="ls-headline">Kelola Keuangan<br><span class="ls-headline-accent">Lebih Cerdas.</span></h1>
+        <p class="ls-desc">Catat pemasukan &amp; pengeluaran, pantau saldo real-time, dan buat laporan keuangan — semua dalam satu tempat.</p>
+        <div class="ls-features">
+          <div class="ls-feature-item">
+            <span class="ls-feature-dot"></span>
+            <span>Dashboard &amp; grafik interaktif</span>
+          </div>
+          <div class="ls-feature-item">
+            <span class="ls-feature-dot"></span>
+            <span>Manajemen kategori fleksibel</span>
+          </div>
+          <div class="ls-feature-item">
+            <span class="ls-feature-dot"></span>
+            <span>Export laporan ke Excel</span>
+          </div>
+          <div class="ls-feature-item">
+            <span class="ls-feature-dot"></span>
+            <span>Sinkronisasi semua perangkat</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Login Card -->
+    <div class="ls-right">
+      <div class="login-card">
+        <div class="login-logo">💰</div>
+        <h2 class="login-title">Selamat Datang</h2>
+        <p class="login-subtitle">Login untuk mulai mencatat keuangan kamu dan menyimpan data di semua perangkat.</p>
+        <button class="btn-google" id="btnLogin">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+          Masuk dengan Google
+        </button>
+        <p class="ls-terms">Dengan masuk, kamu menyetujui <a href="#">Syarat &amp; Ketentuan</a> kami.</p>
+      </div>
+    </div>
   </div>
+
+  <!-- Footer -->
+  <footer class="ls-footer">
+    <div class="ls-footer-inner">
+      <div class="ls-footer-left">
+        <span class="ls-footer-logo">💰 Finance Tracker</span>
+        <span class="ls-footer-copy">© 2025 Finance Tracker. All rights reserved.</span>
+      </div>
+      <div class="ls-footer-right">
+        <a href="#">Kebijakan Privasi</a>
+        <a href="#">Syarat &amp; Ketentuan</a>
+      </div>
+    </div>
+  </footer>
+
 </div>
 
 <!-- ── App Screen ────────────────────────────────────────── -->
