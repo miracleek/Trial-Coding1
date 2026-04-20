@@ -230,9 +230,6 @@ function showApp(user) {
   bindAmountMask('incomeAmount',  () => rawIncomeAmt,  v => { rawIncomeAmt  = v; });
   bindAmountMask('expenseAmount', () => rawExpenseAmt, v => { rawExpenseAmt = v; });
 
-  initCatDropdown('incomeCategory',  'incomeCatList',  'Pendapatan');
-  initCatDropdown('expenseCategory', 'expenseCatList', 'Pengeluaran');
-
   // Report filter tabs
   document.querySelectorAll('[data-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -319,120 +316,17 @@ function renderSummary() {
 
 // ── Category Selects ───────────────────────────────────────
 function populateCategorySelect(selectId, type) {
-  const input = document.getElementById(selectId);
-  if (!input) return;
-  // Store categories for this dropdown
-  input._catOptions = categories.filter(c => c.type === type).map(c => ({
-    label: (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name,
-    value: c.name,
-  }));
-  // Re-render list if already open
-  const listId = selectId === 'incomeCategory' ? 'incomeCatList' : 'expenseCatList';
-  _renderCatList(input, document.getElementById(listId), input._catOptions);
-}
-
-function _renderCatList(input, listEl, options) {
-  const q = input.value.trim().toLowerCase();
-  const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)) : options;
-  listEl.innerHTML = filtered.map((o, i) =>
-    `<div class="cat-dropdown-item" data-value="${o.value}" data-idx="${i}">${o.label}</div>`
-  ).join('');
-}
-
-function initCatDropdown(inputId, listId, type) {
-  const input   = document.getElementById(inputId);
-  const listEl  = document.getElementById(listId);
-  if (!input || !listEl) return;
-
-  let activeIdx = -1;
-
-  function getItems() { return listEl.querySelectorAll('.cat-dropdown-item'); }
-
-  function setActive(idx) {
-    getItems().forEach((el, i) => el.classList.toggle('active', i === idx));
-    activeIdx = idx;
-  }
-
-  function getOptions() {
-    // Always use latest from categories global if _catOptions not set yet
-    if (!input._catOptions || input._catOptions.length === 0) {
-      input._catOptions = categories.filter(c => c.type === type).map(c => ({
-        label: (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name,
-        value: c.name,
-      }));
-    }
-    return input._catOptions;
-  }
-
-  function openList() {
-    _renderCatList(input, listEl, getOptions());
-    listEl.classList.add('open');
-    activeIdx = -1;
-  }
-
-  function closeList() {
-    listEl.classList.remove('open');
-    activeIdx = -1;
-  }
-
-  function selectItem(value, label) {
-    input.value = label;
-    input._selectedValue = value;
-    closeList();
-    input.classList.remove('invalid');
-    const errEl = document.getElementById('err-' + inputId);
-    if (errEl) errEl.textContent = '';
-  }
-
-  input.addEventListener('focus', () => openList());
-
-  input.addEventListener('input', () => {
-    input._selectedValue = '';
-    _renderCatList(input, listEl, getOptions());
-    listEl.classList.add('open');
-    activeIdx = -1;
+  const input    = document.getElementById(selectId);
+  const datalist = document.getElementById(selectId + 'List');
+  if (!datalist) return;
+  const prev = input.value;
+  datalist.innerHTML = '';
+  categories.filter(c => c.type === type).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
+    datalist.appendChild(opt);
   });
-
-  input.addEventListener('keydown', e => {
-    const items = getItems();
-    if (!listEl.classList.contains('open')) { if (e.key === 'ArrowDown') openList(); return; }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive(Math.min(activeIdx + 1, items.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive(Math.max(activeIdx - 1, 0));
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      if (activeIdx >= 0 && items[activeIdx]) {
-        e.preventDefault();
-        const el = items[activeIdx];
-        selectItem(el.dataset.value, el.textContent);
-      } else if (items.length === 1) {
-        // auto-select if only one match
-        if (e.key === 'Tab') {
-          const el = items[0];
-          selectItem(el.dataset.value, el.textContent);
-        } else {
-          e.preventDefault();
-          const el = items[0];
-          selectItem(el.dataset.value, el.textContent);
-        }
-      } else {
-        closeList();
-      }
-    } else if (e.key === 'Escape') {
-      closeList();
-    }
-  });
-
-  listEl.addEventListener('mousedown', e => {
-    const item = e.target.closest('.cat-dropdown-item');
-    if (item) { e.preventDefault(); selectItem(item.dataset.value, item.textContent); }
-  });
-
-  document.addEventListener('click', e => {
-    if (!input.closest('.cat-dropdown').contains(e.target)) closeList();
-  });
+  if (prev) input.value = prev;
 }
 
 function getCatMeta(name) {
@@ -651,12 +545,11 @@ async function deleteCategory(id) {
 async function handleIncomeSubmit(e) {
   e.preventDefault();
   if (!validateTxForm('income')) return;
-  const catInput = document.getElementById('incomeCategory');
   await saveTx({
     type:     'Pendapatan',
     name:     document.getElementById('incomeName').value.trim(),
     amount:   parseInt(rawIncomeAmt, 10),
-    category: catInput._selectedValue || stripCategoryEmoji(catInput.value),
+    category: stripCategoryEmoji(document.getElementById('incomeCategory').value),
     date:     document.getElementById('incomeDate').value,
   }, 'income');
 }
@@ -664,12 +557,11 @@ async function handleIncomeSubmit(e) {
 async function handleExpenseSubmit(e) {
   e.preventDefault();
   if (!validateTxForm('expense')) return;
-  const catInput = document.getElementById('expenseCategory');
   await saveTx({
     type:     'Pengeluaran',
     name:     document.getElementById('expenseName').value.trim(),
     amount:   parseInt(rawExpenseAmt, 10),
-    category: catInput._selectedValue || stripCategoryEmoji(catInput.value),
+    category: stripCategoryEmoji(document.getElementById('expenseCategory').value),
     date:     document.getElementById('expenseDate').value,
   }, 'expense');
 }
@@ -681,8 +573,8 @@ async function saveTx(tx, prefix) {
   try {
     await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), { ...tx, createdAt: Date.now() });
     document.getElementById(`${prefix}Form`).reset();
-    if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = ''; document.getElementById('incomeCategory').value = ''; document.getElementById('incomeCategory')._selectedValue = ''; }
-    if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = ''; document.getElementById('expenseCategory').value = ''; document.getElementById('expenseCategory')._selectedValue = ''; }
+    if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = ''; }
+    if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = ''; }
     populateCategorySelect(`${prefix}Category`, tx.type);
   } catch (err) { console.error('saveTx:', err); alert('Gagal menyimpan transaksi.'); }
   finally { btn.disabled = false; btn.textContent = prefix === 'income' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran'; }
@@ -697,23 +589,17 @@ async function handleDelete(id) {
 // ── Validation ─────────────────────────────────────────────
 function validateTxForm(prefix) {
   let ok = true;
-  const nameEl = document.getElementById(`${prefix}Name`);
-  const nameErr = document.getElementById(`err-${prefix}Name`);
-  if (!nameEl.value.trim()) { nameEl.classList.add('invalid'); nameErr.textContent = 'Nama wajib diisi.'; ok = false; }
-  else { nameEl.classList.remove('invalid'); nameErr.textContent = ''; }
-
-  // Category — check _selectedValue or raw input
-  const catEl  = document.getElementById(`${prefix}Category`);
-  const catErr = document.getElementById(`err-${prefix}Category`);
-  const catVal = catEl._selectedValue || stripCategoryEmoji(catEl.value);
-  if (!catVal) { catEl.classList.add('invalid'); catErr.textContent = 'Pilih kategori.'; ok = false; }
-  else { catEl.classList.remove('invalid'); catErr.textContent = ''; }
-
-  const dateEl  = document.getElementById(`${prefix}Date`);
-  const dateErr = document.getElementById(`err-${prefix}Date`);
-  if (!dateEl.value.trim()) { dateEl.classList.add('invalid'); dateErr.textContent = 'Tanggal wajib diisi.'; ok = false; }
-  else { dateEl.classList.remove('invalid'); dateErr.textContent = ''; }
-
+  const fields = [
+    { id: `${prefix}Name`,     errId: `err-${prefix}Name`,     msg: 'Nama wajib diisi.' },
+    { id: `${prefix}Category`, errId: `err-${prefix}Category`, msg: 'Pilih kategori.' },
+    { id: `${prefix}Date`,     errId: `err-${prefix}Date`,     msg: 'Tanggal wajib diisi.' },
+  ];
+  fields.forEach(({ id, errId, msg }) => {
+    const el = document.getElementById(id);
+    const er = document.getElementById(errId);
+    if (!el.value.trim()) { el.classList.add('invalid'); er.textContent = msg; ok = false; }
+    else { el.classList.remove('invalid'); er.textContent = ''; }
+  });
   const rawAmt = prefix === 'income' ? rawIncomeAmt : rawExpenseAmt;
   const amtWrap = document.getElementById(`${prefix}Amount`).closest('.amount-wrapper');
   const amtErr  = document.getElementById(`err-${prefix}Amount`);
