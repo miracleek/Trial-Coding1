@@ -1,4 +1,4 @@
-/* ===========================
+﻿/* ===========================
    Finance Tracker — app.js
    Vanilla JS | Firebase Auth + Firestore
 =========================== */
@@ -723,7 +723,6 @@ function formatDate(iso) {
   return d + '/' + m + '/' + y;
 }
 function todayISO() { return new Date().toISOString().split('T')[0]; }
-// Strip leading emoji + space from datalist option value (e.g. "🍽️ Makan" → "Makan")
 function stripCategoryEmoji(val) {
   if (!val) return val;
   return val.replace(/^[\p{Emoji}\p{So}\s]+/u, '').trim();

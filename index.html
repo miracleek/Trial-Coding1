@@ -4,345 +4,56 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finance Tracker</title>
-  <link rel="shortcut icon" type="image/x-icon" href="assets/img/favicon.png" />
-  <!-- Fibank CSS -->
-  <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
-  <link rel="stylesheet" href="assets/css/satoshi.css" />
-  <link rel="stylesheet" href="assets/fonts/bootstrap-icons.css" />
-  <link rel="stylesheet" href="assets/css/animate.min.css" />
-  <link rel="stylesheet" href="assets/css/slick.css" />
-  <link rel="stylesheet" href="assets/css/aos.css" />
-  <link rel="stylesheet" href="assets/css/spacing.css" />
-  <link rel="stylesheet" href="assets/css/main.css" />
-  <!-- App CSS -->
   <link rel="stylesheet" href="css/style.css" />
-  <!-- Chart & Excel -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<div class="main-page-wrapper">
 
-<!-- ══════════════════════════════════════
-     LOGIN SCREEN  (index-3 style)
-══════════════════════════════════════ -->
+<!-- ── Login Screen ──────────────────────────────────────── -->
 <div id="loginScreen">
-
-  <!-- preloader -->
-  <div id="preloader">
-    <div id="ctn-preloader" class="ctn-preloader">
-      <div class="txt-loading">
-        <span data-text-preloader="F" class="letters-loading">F</span>
-        <span data-text-preloader="i" class="letters-loading">i</span>
-        <span data-text-preloader="n" class="letters-loading">n</span>
-        <span data-text-preloader="T" class="letters-loading">T</span>
-        <span data-text-preloader="r" class="letters-loading">r</span>
-        <span data-text-preloader="k" class="letters-loading">k</span>
-      </div>
-    </div>
+  <div class="login-card">
+    <div class="login-logo">💰</div>
+    <h1 class="login-title">Finance Tracker</h1>
+    <p class="login-subtitle">Catat pemasukan &amp; pengeluaran kamu.<br>Login untuk menyimpan data di semua perangkat.</p>
+    <button class="btn-google" id="btnLogin">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+      Masuk dengan Google
+    </button>
+    <button class="btn-theme login-theme" id="btnTheme" title="Toggle tema" aria-label="Toggle tema">
+      <span id="themeIcon">🌙</span>
+    </button>
   </div>
-
-  <!-- header — theme-menu-one (index-3 style) -->
-  <header class="theme-main-menu theme-menu-one sticky-menu">
-    <div class="header-top">
-      <div class="container-fluid">
-        <div class="row">
-          <div class="col-lg-12">
-            <div class="topbar-content d-flex align-items-center justify-content-center justify-content-md-between">
-              <div class="ht-topbar-left">
-                <a class="ht-promo d-none d-md-inline-block" href="#"><span>Halo!</span> Selamat datang di Finance Tracker.</a>
-                <a class="ht-phone d-none d-xl-inline-block" href="#"><span><i class="bi bi-envelope"></i></span> eduworkrin@gmail.com</a>
-              </div>
-              <div class="ht-topbar-right d-flex align-items-center">
-                <div class="header-social">
-                  <button class="btn-theme-top" id="btnTheme" title="Toggle tema" aria-label="Toggle tema" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:4px 8px;">
-                    <span id="themeIcon">🌙</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="main-header-area">
-      <div class="container-fluid">
-        <div class="row align-items-center justify-content-between">
-          <div class="col-md-auto col-6">
-            <div class="logo-area">
-              <a href="#" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
-                <span style="width:36px;height:36px;background:#AEFF1C;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">💰</span>
-                <span style="font-family:'Radio Canada Big',serif;font-size:1.1rem;font-weight:700;color:#000;">Finance Tracker</span>
-              </a>
-            </div>
-          </div>
-          <div class="col-md-auto col-6">
-            <div class="right-nav d-flex align-items-center justify-content-end">
-              <div class="quote-btn d-lg-inline-block">
-                <a href="#loginCard" class="ht-btn bs-btn">Masuk Sekarang</a>
-              </div>
-              <div class="hamburger-menu ms-3 d-lg-none d-md-inline-flex">
-                <div class="bar-wrap">
-                  <div class="bar-1"></div>
-                  <div class="bar-2"></div>
-                  <div class="bar-3"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- hero — theme-banner-one (index-3 style) -->
-  <section class="theme-banner-one">
-    <img class="shape-1" src="assets/img/shape/shape-1.png" alt="shape">
-    <div class="container-fluid">
-      <div class="row align-items-center">
-        <div class="col-lg-6">
-          <h1 class="main-title wow fadeInUp">Kelola Keuangan Lebih <span style="color:#AEFF1C;">Cerdas &amp; Aman.</span></h1>
-          <p class="hero-description pe-xxl-4 wow fadeInUp" data-wow-delay="0.1s">
-            Catat pemasukan &amp; pengeluaran, analisis kategori, pantau laporan keuangan secara real-time di semua perangkat.
-          </p>
-          <div class="user-content-wrap-1 d-md-flex mb-55 wow fadeInUp" data-wow-delay="0.2s">
-            <ul class="feedback-user-list">
-              <li><img src="assets/img/media/media-4.jpg" alt="user"></li>
-              <li><img src="assets/img/media/media-5.jpg" alt="user"></li>
-              <li><img src="assets/img/media/media-6.jpg" alt="user"></li>
-            </ul>
-            <div class="rating-box pl-30">
-              <div class="hero-rating mb-10">
-                <a href="#"><i class="bi bi-star-fill"></i></a>
-                <a href="#"><i class="bi bi-star-fill"></i></a>
-                <a href="#"><i class="bi bi-star-fill"></i></a>
-                <a href="#"><i class="bi bi-star-fill"></i></a>
-                <a href="#"><i class="bi bi-star-fill"></i></a>
-              </div>
-              <h3>5k+ pengguna <span>(4.9 Rating)</span></h3>
-            </div>
-          </div>
-          <div class="d-md-flex align-items-center mb-lg-0 mb-5 wow fadeInUp" data-wow-delay="0.3s">
-            <a href="#loginCard" class="ht-btn bstyle me-xl-3">Mulai Sekarang</a>
-            <a href="#features" class="ht-btn bstyle-2 d-none d-xl-inline-block">Lihat Fitur
-              <span class="popup-video ms-md-5 ms-3" style="background:#104042;"><i class="bi bi-play-fill"></i></span>
-            </a>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="hero-img text-lg-end wow fadeInRight" data-wow-delay="0.2s">
-            <img class="main-img img-fluid" src="assets/img/hero/hero-img-1.jpg" alt="Finance Tracker Hero">
-            <img class="card-shape d-none d-xxl-inline-block" src="assets/img/hero/card.png" alt="card">
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- stats section — theme-bg2 (index-3 style) -->
-  <section class="theme-bg2 fun-fact-section position-relative z-1 pt-125 pb-80 pt-lg-100 pb-lg-65">
-    <img class="shape-1 position-absolute bottom-0 z-n1" src="assets/img/shape/shape-2.png" alt="shape">
-    <img class="shape-2 position-absolute end-0 top-0 z-n1" src="assets/img/shape/shape-3.png" alt="shape">
-    <div class="container">
-      <div class="row">
-        <div class="col-lg-6">
-          <div class="title-one mb-70 mb-md-30">
-            <h2 class="title text-white wow fadeInLeft">Kenapa Finance Tracker?</h2>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="title-one ps-xxl-5 ms-xxl-5 mb-70">
-            <p class="description text-white wow fadeInRight">Solusi pencatatan keuangan pribadi yang mudah, cepat, dan aman — tersinkronisasi di semua perangkat lewat Firebase.</p>
-          </div>
-        </div>
-      </div>
-      <div class="row align-items-center justify-content-center">
-        <div class="col-lg-4 col-md-4 d-lg-flex justify-content-lg-start">
-          <div class="counter-wrap-1 wow fadeInUp">
-            <h3 class="number"><span class="counter">100</span>%</h3>
-            <p class="counter-title">Data Tersinkronisasi</p>
-          </div>
-        </div>
-        <div class="col-lg-4 col-md-4">
-          <div class="counter-wrap-1 wow fadeInUp">
-            <h3 class="number"><span class="counter">5</span>+</h3>
-            <p class="counter-title">Menu Fitur Lengkap</p>
-          </div>
-        </div>
-        <div class="col-lg-4 col-md-4 d-lg-flex justify-content-lg-end">
-          <div class="counter-wrap-1 wow fadeInUp">
-            <h3 class="number"><span class="counter">24</span>/7</h3>
-            <p class="counter-title">Akses Real-time</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- features section -->
-  <section class="feature-section pt-140 pb-30 pt-lg-60 pb-lg-15" id="features">
-    <div class="container">
-      <div class="title-one text-center mb-75">
-        <h2 class="title text-heding2 wow fadeInUp">Fitur Unggulan</h2>
-      </div>
-      <div class="row">
-        <div class="col-lg-6">
-          <div class="img-wrapper-one position-relative mb-45 wow fadeInLeft">
-            <img class="main-img img-fluid" src="assets/img/media/media-1.png" alt="Features">
-            <img class="shape-1 img-fluid" src="assets/img/bg/bg-1.jpg" alt="bg">
-            <img class="shape-2" src="assets/img/shape/shape-4.png" alt="shape">
-            <div class="float-content-1">
-              <div class="icon"><img src="assets/img/icon/icon-4.png" alt="icon"></div>
-              <div class="content">
-                <h3 class="number"><span class="counter">100</span>%</h3>
-                <p class="text-title">Data Aman</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="ps-xxl-5">
-            <div class="feature-wrap-1 wow fadeInUp">
-              <div class="icon">
-                <img class="front-icon" src="assets/img/icon/icon-1w.svg" alt="icon">
-                <img class="back-icon" src="assets/img/icon/icon-1.svg" alt="icon">
-              </div>
-              <div class="content">
-                <h4 class="feature-title">Dashboard Analitik</h4>
-                <p class="description">Visualisasi pendapatan &amp; pengeluaran dengan pie chart interaktif, filter periode, dan ringkasan saldo real-time.</p>
-              </div>
-            </div>
-            <div class="feature-wrap-1 wow fadeInUp" data-wow-delay="0.1s">
-              <div class="icon">
-                <img class="front-icon" src="assets/img/icon/icon-2.svg" alt="icon">
-                <img class="back-icon" src="assets/img/icon/icon-2.svg" alt="icon">
-              </div>
-              <div class="content">
-                <h4 class="feature-title">Kategori Custom</h4>
-                <p class="description">Buat, edit, dan hapus kategori transaksi sesuai kebutuhan — tidak lagi hardcode, tersimpan di cloud.</p>
-              </div>
-            </div>
-            <div class="feature-wrap-1 wow fadeInUp" data-wow-delay="0.2s">
-              <div class="icon">
-                <img class="front-icon" src="assets/img/icon/icon-3.svg" alt="icon">
-                <img class="back-icon" src="assets/img/icon/icon-3.svg" alt="icon">
-              </div>
-              <div class="content">
-                <h4 class="feature-title">Laporan &amp; Export Excel</h4>
-                <p class="description">Filter laporan per bulan, per tipe transaksi, dan export ke Excel dengan satu klik.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- login card section -->
-  <section class="pt-120 pb-120 pt-lg-60 pb-lg-60" id="loginCard" data-background="assets/img/bg/bg-2.jpg">
-    <div class="container">
-      <div class="row align-items-center justify-content-between g-5">
-        <div class="col-lg-6 wow fadeInLeft">
-          <div class="title-one mb-30">
-            <h2 class="title text-white">Mulai Kelola Keuangan Kamu</h2>
-          </div>
-          <p class="text-xl text-white mb-40">
-            Login dengan akun Google kamu untuk mulai mencatat transaksi, menganalisis pengeluaran, dan memantau laporan keuangan secara real-time.
-          </p>
-          <div class="d-flex flex-wrap gap-3 mb-40">
-            <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.15);">
-              <i class="bi bi-shield-check-fill" style="font-size:1.5rem;color:#AEFF1C;"></i>
-              <div>
-                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;font-family:'Radio Canada Big',serif;">Aman &amp; Terenkripsi</div>
-                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Data tersimpan di Firebase</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.15);">
-              <i class="bi bi-phone-fill" style="font-size:1.5rem;color:#AEFF1C;"></i>
-              <div>
-                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;font-family:'Radio Canada Big',serif;">Multi Perangkat</div>
-                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Sync otomatis real-time</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.15);">
-              <i class="bi bi-graph-up-arrow" style="font-size:1.5rem;color:#AEFF1C;"></i>
-              <div>
-                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;font-family:'Radio Canada Big',serif;">Analitik Lengkap</div>
-                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Chart &amp; laporan Excel</div>
-              </div>
-            </div>
-          </div>
-          <a href="#loginCard" class="btn-two">Pelajari Lebih Lanjut <span><img src="assets/img/icon/arrow-2.svg" alt="arrow"></span></a>
-        </div>
-        <div class="col-lg-5 col-md-8 mx-auto wow fadeInRight">
-          <div class="login-card">
-            <div class="login-logo">💰</div>
-            <h2 class="login-title">Selamat Datang</h2>
-            <p class="login-subtitle">Masuk untuk mulai mencatat dan memantau keuangan kamu secara real-time.</p>
-            <button class="btn-google" id="btnLogin">
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
-              Masuk dengan Google
-            </button>
-            <p style="margin-top:20px;font-size:0.75rem;color:var(--text-muted);">
-              Dengan masuk, kamu menyetujui syarat &amp; ketentuan penggunaan.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- footer strip -->
-  <div class="theme-bg2 py-4">
-    <div class="container">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">© 2025 Finance Tracker. All rights reserved.</span>
-        <span style="color:rgba(255,255,255,0.4);font-size:0.8rem;">Powered by Firebase &amp; Fibank Template</span>
-      </div>
-    </div>
-  </div>
-
 </div>
-<!-- /loginScreen -->
 
-<!-- ══════════════════════════════════════
-     APP SCREEN
-══════════════════════════════════════ -->
+<!-- ── App Screen ────────────────────────────────────────── -->
 <div id="appScreen" style="display:none">
 
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo">💰</div>
+      <span class="sidebar-logo">💰</span>
       <span class="sidebar-title">Finance Tracker</span>
-      <button class="sidebar-close" id="sidebarClose" aria-label="Tutup menu">
-        <i class="bi bi-x-lg"></i>
-      </button>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Tutup menu">✕</button>
     </div>
     <nav class="sidebar-nav">
       <button class="nav-item active" data-page="dashboard">
-        <span class="nav-icon"><i class="bi bi-grid-1x2-fill"></i></span>
-        <span class="nav-label">Dashboard</span>
+        <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
       </button>
       <button class="nav-item" data-page="income">
-        <span class="nav-icon"><i class="bi bi-arrow-down-circle-fill"></i></span>
-        <span class="nav-label">Pendapatan</span>
+        <span class="nav-icon">📥</span><span class="nav-label">Pendapatan</span>
       </button>
       <button class="nav-item" data-page="expense">
-        <span class="nav-icon"><i class="bi bi-arrow-up-circle-fill"></i></span>
-        <span class="nav-label">Pengeluaran</span>
+        <span class="nav-icon">📤</span><span class="nav-label">Pengeluaran</span>
       </button>
       <button class="nav-item" data-page="categories">
-        <span class="nav-icon"><i class="bi bi-tags-fill"></i></span>
-        <span class="nav-label">Kategori</span>
+        <span class="nav-icon">🏷️</span><span class="nav-label">Kategori</span>
       </button>
       <button class="nav-item" data-page="report">
-        <span class="nav-icon"><i class="bi bi-file-earmark-bar-graph-fill"></i></span>
-        <span class="nav-label">Laporan</span>
+        <span class="nav-icon">📋</span><span class="nav-label">Laporan</span>
       </button>
       <button class="nav-item admin-only" data-page="users">
-        <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
-        <span class="nav-label">User Management</span>
+        <span class="nav-icon">👥</span><span class="nav-label">User Management</span>
       </button>
     </nav>
     <div class="sidebar-footer">
@@ -357,23 +68,18 @@
         <button class="btn-theme" id="btnThemeApp" title="Toggle tema" aria-label="Toggle tema">
           <span id="themeIconApp">🌙</span>
         </button>
-        <button class="btn-logout" id="btnLogout" title="Keluar" aria-label="Keluar">
-          <i class="bi bi-box-arrow-right"></i>
-        </button>
+        <button class="btn-logout" id="btnLogout" title="Keluar" aria-label="Keluar">🚪</button>
       </div>
     </div>
   </aside>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <!-- Main Wrapper -->
+  <!-- Main -->
   <div class="main-wrapper">
-
     <!-- Topbar -->
     <div class="topbar">
-      <button class="btn-hamburger" id="btnHamburger" aria-label="Buka menu">
-        <i class="bi bi-list"></i>
-      </button>
+      <button class="btn-hamburger" id="btnHamburger" aria-label="Buka menu">☰</button>
       <div class="topbar-summary">
         <div class="summary-card income">
           <span class="summary-label">Pendapatan</span>
@@ -390,10 +96,9 @@
       </div>
     </div>
 
-    <!-- Pages -->
     <div class="page-content">
 
-      <!-- DASHBOARD -->
+      <!-- ── DASHBOARD ── -->
       <section class="page active" id="page-dashboard">
         <div class="page-header">
           <h2 class="page-title">Dashboard</h2>
@@ -405,31 +110,31 @@
         </div>
         <div class="dash-stats-row">
           <div class="dash-stat-card income">
-            <span class="dash-label"><i class="bi bi-arrow-down-circle me-1"></i>Total Pendapatan</span>
+            <span class="dash-label">Total Pendapatan</span>
             <span class="dash-val income" id="dashIncome">Rp 0</span>
           </div>
           <div class="dash-stat-card expense">
-            <span class="dash-label"><i class="bi bi-arrow-up-circle me-1"></i>Total Pengeluaran</span>
+            <span class="dash-label">Total Pengeluaran</span>
             <span class="dash-val expense" id="dashExpense">Rp 0</span>
           </div>
           <div class="dash-stat-card balance">
-            <span class="dash-label"><i class="bi bi-wallet2 me-1"></i>Selisih</span>
+            <span class="dash-label">Selisih</span>
             <span class="dash-val" id="dashBalance">Rp 0</span>
           </div>
         </div>
         <div class="dashboard-grid">
           <div class="card">
-            <h3 class="card-title"><i class="bi bi-pie-chart-fill me-1"></i>Distribusi Pengeluaran</h3>
+            <h3 class="card-title">Distribusi Pengeluaran</h3>
             <div class="chart-wrapper"><canvas id="spendingChart"></canvas></div>
             <p class="empty-state" id="chartEmpty">Belum ada data pengeluaran.</p>
           </div>
           <div class="card">
-            <h3 class="card-title"><i class="bi bi-pie-chart me-1"></i>Distribusi Pendapatan</h3>
+            <h3 class="card-title">Distribusi Pendapatan</h3>
             <div class="chart-wrapper"><canvas id="incomeChart"></canvas></div>
             <p class="empty-state" id="incomeChartEmpty">Belum ada data pendapatan.</p>
           </div>
-          <div class="card" style="grid-column:1/-1">
-            <h3 class="card-title"><i class="bi bi-clock-history me-1"></i>Transaksi Terbaru</h3>
+          <div class="card" style="grid-column: 1 / -1">
+            <h3 class="card-title">Transaksi Terbaru</h3>
             <div class="list-wrapper" id="recentList">
               <p class="empty-state">Belum ada transaksi.</p>
             </div>
@@ -437,9 +142,9 @@
         </div>
       </section>
 
-      <!-- PENDAPATAN -->
+      <!-- ── PENDAPATAN ── -->
       <section class="page" id="page-income">
-        <h2 class="page-title"><i class="bi bi-arrow-down-circle-fill me-2" style="color:#104042"></i>Pendapatan</h2>
+        <h2 class="page-title">Pendapatan</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah Pendapatan</h3>
@@ -468,9 +173,7 @@
                 <input type="date" id="incomeDate" />
                 <span class="error-msg" id="err-incomeDate"></span>
               </div>
-              <button type="submit" class="ht-btn w-100 mt-2" style="justify-content:center;">
-                <i class="bi bi-plus-circle me-2"></i>Tambah Pendapatan
-              </button>
+              <button type="submit" class="btn-add income-mode">+ Tambah Pendapatan</button>
             </form>
           </div>
           <div class="card">
@@ -482,9 +185,9 @@
         </div>
       </section>
 
-      <!-- PENGELUARAN -->
+      <!-- ── PENGELUARAN ── -->
       <section class="page" id="page-expense">
-        <h2 class="page-title"><i class="bi bi-arrow-up-circle-fill me-2" style="color:#e53e3e"></i>Pengeluaran</h2>
+        <h2 class="page-title">Pengeluaran</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah Pengeluaran</h3>
@@ -513,9 +216,7 @@
                 <input type="date" id="expenseDate" />
                 <span class="error-msg" id="err-expenseDate"></span>
               </div>
-              <button type="submit" class="ht-btn w-100 mt-2" style="justify-content:center;background:#e53e3e;">
-                <i class="bi bi-plus-circle me-2"></i>Tambah Pengeluaran
-              </button>
+              <button type="submit" class="btn-add">+ Tambah Pengeluaran</button>
             </form>
           </div>
           <div class="card">
@@ -527,9 +228,9 @@
         </div>
       </section>
 
-      <!-- KATEGORI -->
+      <!-- ── KATEGORI ── -->
       <section class="page" id="page-categories">
-        <h2 class="page-title"><i class="bi bi-tags-fill me-2" style="color:#104042"></i>Kategori</h2>
+        <h2 class="page-title">Manajemen Kategori</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah / Edit Kategori</h3>
@@ -569,28 +270,26 @@
               </div>
               <div class="form-group">
                 <label for="catColor">Warna</label>
-                <input type="color" id="catColor" value="#104042" />
+                <input type="color" id="catColor" value="#6366f1" />
               </div>
-              <button type="submit" class="ht-btn w-100 mt-2" id="btnSaveCategory" style="justify-content:center;">
-                <i class="bi bi-plus-circle me-2"></i>Tambah Kategori
-              </button>
+              <button type="submit" class="btn-add" id="btnSaveCategory">+ Tambah Kategori</button>
             </form>
           </div>
           <div class="card">
             <div class="cat-tabs">
-              <button class="ht-btn style-2 cat-filter-btn active" data-cat-filter="Pengeluaran" style="padding:10px 20px;font-size:0.82rem;">📤 Pengeluaran</button>
-              <button class="ht-btn cat-filter-btn" data-cat-filter="Pendapatan" style="padding:10px 20px;font-size:0.82rem;">📥 Pendapatan</button>
+              <button class="filter-btn active" data-cat-filter="Pengeluaran">📤 Pengeluaran</button>
+              <button class="filter-btn" data-cat-filter="Pendapatan">📥 Pendapatan</button>
             </div>
-            <div id="categoryList" class="category-list mt-3">
+            <div id="categoryList" class="category-list">
               <p class="empty-state">Belum ada kategori.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- LAPORAN -->
+      <!-- ── LAPORAN ── -->
       <section class="page" id="page-report">
-        <h2 class="page-title"><i class="bi bi-file-earmark-bar-graph-fill me-2" style="color:#104042"></i>Laporan Transaksi</h2>
+        <h2 class="page-title">Laporan Transaksi</h2>
         <div class="card">
           <div class="report-toolbar">
             <div class="filter-tabs">
@@ -600,9 +299,7 @@
             </div>
             <div class="report-filters">
               <input type="month" id="reportMonth" title="Filter bulan" />
-              <button class="ht-btn" id="btnExport" style="padding:10px 22px;font-size:0.82rem;">
-                <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-              </button>
+              <button class="btn-export" id="btnExport">📊 Export Excel</button>
             </div>
           </div>
           <div class="list-wrapper" id="reportList" style="max-height:600px">
@@ -611,9 +308,9 @@
         </div>
       </section>
 
-      <!-- USER MANAGEMENT -->
+      <!-- ── USER MANAGEMENT ── -->
       <section class="page" id="page-users">
-        <h2 class="page-title"><i class="bi bi-people-fill me-2" style="color:#104042"></i>User Management</h2>
+        <h2 class="page-title">User Management</h2>
         <div class="card">
           <div class="users-toolbar">
             <input type="text" id="userSearch" placeholder="🔍 Cari nama atau email..." class="search-input" />
@@ -628,19 +325,7 @@
   </div><!-- /main-wrapper -->
 </div><!-- /appScreen -->
 
-<!-- Fibank JS -->
-<script src="assets/js/jquery-3.5.1.min.js"></script>
-<script src="assets/js/bootstrap.min.js"></script>
-<script src="assets/js/aos.js"></script>
-<script src="assets/js/wow.min.js"></script>
-<script src="assets/js/jquery.counterup.min.js"></script>
-<script src="assets/js/jquery.waypoints.min.js"></script>
-<script src="assets/js/slick.min.js"></script>
-<script src="assets/js/main.js"></script>
-
-<!-- App JS (module) -->
 <script type="module" src="js/app.js"></script>
-</div><!-- /main-page-wrapper -->
 </body>
 </html>
 
