@@ -84,25 +84,24 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0a1a0a;
+  background: #0a1a0a url('../background.jpeg') center center / cover no-repeat;
   position: relative;
   overflow: hidden;
 }
 
-/* Background blobs */
+/* Dark overlay biar teks tetap terbaca */
 #loginScreen::before {
   content: "";
   position: absolute;
-  width: 700px; height: 700px;
-  background: radial-gradient(circle, rgba(174,255,28,0.12) 0%, transparent 65%);
-  top: -200px; right: -150px;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
   pointer-events: none; z-index: 0;
 }
 #loginScreen::after {
   content: "";
   position: absolute;
   width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(16,64,66,0.5) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(174,255,28,0.1) 0%, transparent 65%);
   bottom: -100px; left: -100px;
   pointer-events: none; z-index: 0;
 }
