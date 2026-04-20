@@ -220,8 +220,8 @@ function showApp(user) {
     await signOut(auth);
   });
 
-  document.getElementById('incomeDate').value  = todayISO();
-  document.getElementById('expenseDate').value = todayISO();
+  document.getElementById('incomeDate').value  = '';
+  document.getElementById('expenseDate').value = '';
 
   document.getElementById('incomeForm').addEventListener('submit',   handleIncomeSubmit);
   document.getElementById('expenseForm').addEventListener('submit',  handleExpenseSubmit);
@@ -316,16 +316,17 @@ function renderSummary() {
 
 // ── Category Selects ───────────────────────────────────────
 function populateCategorySelect(selectId, type) {
-  const sel  = document.getElementById(selectId);
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">-- Pilih Kategori --</option>';
+  const input    = document.getElementById(selectId);
+  const datalist = document.getElementById(selectId + 'List');
+  if (!datalist) return;
+  const prev = input.value;
+  datalist.innerHTML = '';
   categories.filter(c => c.type === type).forEach(c => {
     const opt = document.createElement('option');
-    opt.value = c.name;
-    opt.textContent = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
-    sel.appendChild(opt);
+    opt.value = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
+    datalist.appendChild(opt);
   });
-  if (prev) sel.value = prev;
+  if (prev) input.value = prev;
 }
 
 function getCatMeta(name) {
@@ -548,7 +549,7 @@ async function handleIncomeSubmit(e) {
     type:     'Pendapatan',
     name:     document.getElementById('incomeName').value.trim(),
     amount:   parseInt(rawIncomeAmt, 10),
-    category: document.getElementById('incomeCategory').value,
+    category: stripCategoryEmoji(document.getElementById('incomeCategory').value),
     date:     document.getElementById('incomeDate').value,
   }, 'income');
 }
@@ -560,7 +561,7 @@ async function handleExpenseSubmit(e) {
     type:     'Pengeluaran',
     name:     document.getElementById('expenseName').value.trim(),
     amount:   parseInt(rawExpenseAmt, 10),
-    category: document.getElementById('expenseCategory').value,
+    category: stripCategoryEmoji(document.getElementById('expenseCategory').value),
     date:     document.getElementById('expenseDate').value,
   }, 'expense');
 }
@@ -572,8 +573,8 @@ async function saveTx(tx, prefix) {
   try {
     await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), { ...tx, createdAt: Date.now() });
     document.getElementById(`${prefix}Form`).reset();
-    if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = todayISO(); }
-    if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = todayISO(); }
+    if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = ''; }
+    if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = ''; }
     populateCategorySelect(`${prefix}Category`, tx.type);
   } catch (err) { console.error('saveTx:', err); alert('Gagal menyimpan transaksi.'); }
   finally { btn.disabled = false; btn.textContent = prefix === 'income' ? '+ Tambah Pendapatan' : '+ Tambah Pengeluaran'; }
@@ -722,6 +723,11 @@ function formatDate(iso) {
   return d + '/' + m + '/' + y;
 }
 function todayISO() { return new Date().toISOString().split('T')[0]; }
+// Strip leading emoji + space from datalist option value (e.g. "🍽️ Makan" → "Makan")
+function stripCategoryEmoji(val) {
+  if (!val) return val;
+  return val.replace(/^[\p{Emoji}\p{So}\s]+/u, '').trim();
+}
 function escapeHTML(str) {
   return String(str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
