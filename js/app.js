@@ -230,8 +230,8 @@ function showApp(user) {
   bindAmountMask('incomeAmount',  () => rawIncomeAmt,  v => { rawIncomeAmt  = v; });
   bindAmountMask('expenseAmount', () => rawExpenseAmt, v => { rawExpenseAmt = v; });
 
-  initCatDropdown('incomeCategory',  'incomeCatList');
-  initCatDropdown('expenseCategory', 'expenseCatList');
+  initCatDropdown('incomeCategory',  'incomeCatList',  'Pendapatan');
+  initCatDropdown('expenseCategory', 'expenseCatList', 'Pengeluaran');
 
   // Report filter tabs
   document.querySelectorAll('[data-filter]').forEach(btn => {
@@ -339,7 +339,7 @@ function _renderCatList(input, listEl, options) {
   ).join('');
 }
 
-function initCatDropdown(inputId, listId) {
+function initCatDropdown(inputId, listId, type) {
   const input   = document.getElementById(inputId);
   const listEl  = document.getElementById(listId);
   if (!input || !listEl) return;
@@ -353,8 +353,19 @@ function initCatDropdown(inputId, listId) {
     activeIdx = idx;
   }
 
+  function getOptions() {
+    // Always use latest from categories global if _catOptions not set yet
+    if (!input._catOptions || input._catOptions.length === 0) {
+      input._catOptions = categories.filter(c => c.type === type).map(c => ({
+        label: (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name,
+        value: c.name,
+      }));
+    }
+    return input._catOptions;
+  }
+
   function openList() {
-    _renderCatList(input, listEl, input._catOptions || []);
+    _renderCatList(input, listEl, getOptions());
     listEl.classList.add('open');
     activeIdx = -1;
   }
@@ -377,7 +388,9 @@ function initCatDropdown(inputId, listId) {
 
   input.addEventListener('input', () => {
     input._selectedValue = '';
-    openList();
+    _renderCatList(input, listEl, getOptions());
+    listEl.classList.add('open');
+    activeIdx = -1;
   });
 
   input.addEventListener('keydown', e => {
