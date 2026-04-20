@@ -459,8 +459,10 @@
               </div>
               <div class="form-group">
                 <label for="incomeCategory">Kategori</label>
-                <input type="text" id="incomeCategory" list="incomeCategoryList" placeholder="-- Pilih atau ketik Kategori --" autocomplete="off" />
-                <datalist id="incomeCategoryList"></datalist>
+                <div class="cat-dropdown" id="incomeCatDropdown">
+                  <input type="text" id="incomeCategory" placeholder="-- Ketik atau pilih Kategori --" autocomplete="off" />
+                  <div class="cat-dropdown-list" id="incomeCatList"></div>
+                </div>
                 <span class="error-msg" id="err-incomeCategory"></span>
               </div>
               <div class="form-group">
@@ -504,8 +506,10 @@
               </div>
               <div class="form-group">
                 <label for="expenseCategory">Kategori</label>
-                <input type="text" id="expenseCategory" list="expenseCategoryList" placeholder="-- Pilih atau ketik Kategori --" autocomplete="off" />
-                <datalist id="expenseCategoryList"></datalist>
+                <div class="cat-dropdown" id="expenseCatDropdown">
+                  <input type="text" id="expenseCategory" placeholder="-- Ketik atau pilih Kategori --" autocomplete="off" />
+                  <div class="cat-dropdown-list" id="expenseCatList"></div>
+                </div>
                 <span class="error-msg" id="err-expenseCategory"></span>
               </div>
               <div class="form-group">
