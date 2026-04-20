@@ -1,4 +1,4 @@
-﻿/* ===========================
+/* ===========================
    Finance Tracker — app.js
    Vanilla JS | Firebase Auth + Firestore
 =========================== */

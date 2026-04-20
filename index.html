@@ -4,58 +4,155 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finance Tracker</title>
+
+  <!-- Fibank Assets -->
+  <link rel="shortcut icon" type="image/x-icon" href="assets/img/favicon.png" />
+  <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="assets/css/satoshi.css" />
+  <link rel="stylesheet" href="assets/fonts/bootstrap-icons.css" />
+  <link rel="stylesheet" href="assets/css/animate.min.css" />
+  <link rel="stylesheet" href="assets/css/aos.css" />
+  <link rel="stylesheet" href="assets/css/main.css" />
+
+  <!-- App CSS -->
   <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Chart & Excel -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body>
+<body class="main-page-wrapper">
 
-<!-- ── Login Screen ──────────────────────────────────────── -->
+<!-- ══════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════ -->
 <div id="loginScreen">
-  <div class="login-card">
-    <div class="login-logo">💰</div>
-    <h1 class="login-title">Finance Tracker</h1>
-    <p class="login-subtitle">Catat pemasukan &amp; pengeluaran kamu.<br>Login untuk menyimpan data di semua perangkat.</p>
-    <button class="btn-google" id="btnLogin">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
-      Masuk dengan Google
-    </button>
-    <button class="btn-theme login-theme" id="btnTheme" title="Toggle tema" aria-label="Toggle tema">
-      <span id="themeIcon">🌙</span>
-    </button>
-  </div>
-</div>
 
-<!-- ── App Screen ────────────────────────────────────────── -->
+  <!-- Fibank-style header on login -->
+  <header class="theme-main-menu theme-menu-five" style="position:absolute;top:0;left:0;right:0;z-index:10;background:transparent;">
+    <div class="container-fluid custom-container">
+      <div class="main-header-area">
+        <div class="row align-items-center justify-content-between">
+          <div class="col-auto">
+            <div class="logo-area">
+              <span style="font-family:'Radio Canada Big',serif;font-size:1.4rem;font-weight:700;color:#fff;">
+                💰 Finance Tracker
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <button class="btn-theme login-theme" id="btnTheme" title="Toggle tema" aria-label="Toggle tema">
+              <span id="themeIcon">🌙</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Login Section -->
+  <section class="theme-banner-five" style="min-height:100vh;display:flex;align-items:center;background:#104042;width:100%;padding:100px 0 60px;">
+    <div class="container">
+      <div class="row align-items-center justify-content-between g-5">
+
+        <!-- Left: Branding -->
+        <div class="col-lg-6" data-aos="fade-right">
+          <h1 class="main-title" style="color:#fff;font-size:clamp(2rem,5vw,3.5rem);line-height:1.2;margin-bottom:20px;">
+            Kelola Keuangan<br>
+            <span style="color:#AEFF1C;">Lebih Cerdas</span>
+          </h1>
+          <p style="color:rgba(255,255,255,0.7);font-size:1rem;line-height:1.7;margin-bottom:36px;max-width:460px;">
+            Catat pemasukan &amp; pengeluaran, analisis kategori, dan pantau laporan keuangan kamu secara real-time di semua perangkat.
+          </p>
+          <div class="d-flex flex-wrap gap-3 mb-40">
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.08);border-radius:12px;padding:14px 20px;">
+              <span style="font-size:1.5rem;">📊</span>
+              <div>
+                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;">Dashboard</div>
+                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Analisis visual</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.08);border-radius:12px;padding:14px 20px;">
+              <span style="font-size:1.5rem;">🏷️</span>
+              <div>
+                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;">Kategori</div>
+                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Custom kategori</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.08);border-radius:12px;padding:14px 20px;">
+              <span style="font-size:1.5rem;">📋</span>
+              <div>
+                <div style="color:#AEFF1C;font-weight:700;font-size:0.85rem;">Laporan</div>
+                <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Export Excel</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Login Card -->
+        <div class="col-lg-5 col-md-8 mx-auto" data-aos="fade-left">
+          <div class="login-card">
+            <div class="login-logo">💰</div>
+            <h2 class="login-title">Selamat Datang</h2>
+            <p class="login-subtitle">Masuk untuk mulai mencatat dan memantau keuangan kamu.</p>
+            <button class="btn-google" id="btnLogin">
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20" />
+              Masuk dengan Google
+            </button>
+            <p style="margin-top:20px;font-size:0.75rem;color:var(--text-muted);">
+              Dengan masuk, kamu menyetujui syarat &amp; ketentuan penggunaan.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+</div>
+<!-- /loginScreen -->
+
+<!-- ══════════════════════════════════════════
+     APP SCREEN
+══════════════════════════════════════════ -->
 <div id="appScreen" style="display:none">
 
-  <!-- Sidebar -->
+  <!-- ── Sidebar ── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <span class="sidebar-logo">💰</span>
+      <div class="sidebar-logo">💰</div>
       <span class="sidebar-title">Finance Tracker</span>
-      <button class="sidebar-close" id="sidebarClose" aria-label="Tutup menu">✕</button>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Tutup menu">
+        <i class="bi bi-x-lg"></i>
+      </button>
     </div>
+
     <nav class="sidebar-nav">
       <button class="nav-item active" data-page="dashboard">
-        <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+        <span class="nav-icon"><i class="bi bi-grid-1x2-fill"></i></span>
+        <span class="nav-label">Dashboard</span>
       </button>
       <button class="nav-item" data-page="income">
-        <span class="nav-icon">📥</span><span class="nav-label">Pendapatan</span>
+        <span class="nav-icon"><i class="bi bi-arrow-down-circle-fill"></i></span>
+        <span class="nav-label">Pendapatan</span>
       </button>
       <button class="nav-item" data-page="expense">
-        <span class="nav-icon">📤</span><span class="nav-label">Pengeluaran</span>
+        <span class="nav-icon"><i class="bi bi-arrow-up-circle-fill"></i></span>
+        <span class="nav-label">Pengeluaran</span>
       </button>
       <button class="nav-item" data-page="categories">
-        <span class="nav-icon">🏷️</span><span class="nav-label">Kategori</span>
+        <span class="nav-icon"><i class="bi bi-tags-fill"></i></span>
+        <span class="nav-label">Kategori</span>
       </button>
       <button class="nav-item" data-page="report">
-        <span class="nav-icon">📋</span><span class="nav-label">Laporan</span>
+        <span class="nav-icon"><i class="bi bi-file-earmark-bar-graph-fill"></i></span>
+        <span class="nav-label">Laporan</span>
       </button>
       <button class="nav-item admin-only" data-page="users">
-        <span class="nav-icon">👥</span><span class="nav-label">User Management</span>
+        <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+        <span class="nav-label">User Management</span>
       </button>
     </nav>
+
     <div class="sidebar-footer">
       <div class="user-info-sidebar">
         <img class="user-avatar" id="userAvatar" src="" alt="avatar" style="display:none" />
@@ -68,18 +165,23 @@
         <button class="btn-theme" id="btnThemeApp" title="Toggle tema" aria-label="Toggle tema">
           <span id="themeIconApp">🌙</span>
         </button>
-        <button class="btn-logout" id="btnLogout" title="Keluar" aria-label="Keluar">🚪</button>
+        <button class="btn-logout" id="btnLogout" title="Keluar" aria-label="Keluar">
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
       </div>
     </div>
   </aside>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <!-- Main -->
+  <!-- ── Main Wrapper ── -->
   <div class="main-wrapper">
+
     <!-- Topbar -->
     <div class="topbar">
-      <button class="btn-hamburger" id="btnHamburger" aria-label="Buka menu">☰</button>
+      <button class="btn-hamburger" id="btnHamburger" aria-label="Buka menu">
+        <i class="bi bi-list"></i>
+      </button>
       <div class="topbar-summary">
         <div class="summary-card income">
           <span class="summary-label">Pendapatan</span>
@@ -96,6 +198,7 @@
       </div>
     </div>
 
+    <!-- Pages -->
     <div class="page-content">
 
       <!-- ── DASHBOARD ── -->
@@ -110,31 +213,31 @@
         </div>
         <div class="dash-stats-row">
           <div class="dash-stat-card income">
-            <span class="dash-label">Total Pendapatan</span>
+            <span class="dash-label"><i class="bi bi-arrow-down-circle me-1"></i>Total Pendapatan</span>
             <span class="dash-val income" id="dashIncome">Rp 0</span>
           </div>
           <div class="dash-stat-card expense">
-            <span class="dash-label">Total Pengeluaran</span>
+            <span class="dash-label"><i class="bi bi-arrow-up-circle me-1"></i>Total Pengeluaran</span>
             <span class="dash-val expense" id="dashExpense">Rp 0</span>
           </div>
           <div class="dash-stat-card balance">
-            <span class="dash-label">Selisih</span>
+            <span class="dash-label"><i class="bi bi-wallet2 me-1"></i>Selisih</span>
             <span class="dash-val" id="dashBalance">Rp 0</span>
           </div>
         </div>
         <div class="dashboard-grid">
           <div class="card">
-            <h3 class="card-title">Distribusi Pengeluaran</h3>
+            <h3 class="card-title"><i class="bi bi-pie-chart-fill me-1"></i>Distribusi Pengeluaran</h3>
             <div class="chart-wrapper"><canvas id="spendingChart"></canvas></div>
             <p class="empty-state" id="chartEmpty">Belum ada data pengeluaran.</p>
           </div>
           <div class="card">
-            <h3 class="card-title">Distribusi Pendapatan</h3>
+            <h3 class="card-title"><i class="bi bi-pie-chart me-1"></i>Distribusi Pendapatan</h3>
             <div class="chart-wrapper"><canvas id="incomeChart"></canvas></div>
             <p class="empty-state" id="incomeChartEmpty">Belum ada data pendapatan.</p>
           </div>
-          <div class="card" style="grid-column: 1 / -1">
-            <h3 class="card-title">Transaksi Terbaru</h3>
+          <div class="card" style="grid-column:1/-1">
+            <h3 class="card-title"><i class="bi bi-clock-history me-1"></i>Transaksi Terbaru</h3>
             <div class="list-wrapper" id="recentList">
               <p class="empty-state">Belum ada transaksi.</p>
             </div>
@@ -144,7 +247,7 @@
 
       <!-- ── PENDAPATAN ── -->
       <section class="page" id="page-income">
-        <h2 class="page-title">Pendapatan</h2>
+        <h2 class="page-title"><i class="bi bi-arrow-down-circle-fill me-2" style="color:#104042"></i>Pendapatan</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah Pendapatan</h3>
@@ -172,7 +275,9 @@
                 <input type="date" id="incomeDate" />
                 <span class="error-msg" id="err-incomeDate"></span>
               </div>
-              <button type="submit" class="btn-add income-mode">+ Tambah Pendapatan</button>
+              <button type="submit" class="btn-add income-mode">
+                <i class="bi bi-plus-circle me-1"></i>Tambah Pendapatan
+              </button>
             </form>
           </div>
           <div class="card">
@@ -186,7 +291,7 @@
 
       <!-- ── PENGELUARAN ── -->
       <section class="page" id="page-expense">
-        <h2 class="page-title">Pengeluaran</h2>
+        <h2 class="page-title"><i class="bi bi-arrow-up-circle-fill me-2" style="color:#e53e3e"></i>Pengeluaran</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah Pengeluaran</h3>
@@ -214,7 +319,9 @@
                 <input type="date" id="expenseDate" />
                 <span class="error-msg" id="err-expenseDate"></span>
               </div>
-              <button type="submit" class="btn-add">+ Tambah Pengeluaran</button>
+              <button type="submit" class="btn-add">
+                <i class="bi bi-plus-circle me-1"></i>Tambah Pengeluaran
+              </button>
             </form>
           </div>
           <div class="card">
@@ -228,7 +335,7 @@
 
       <!-- ── KATEGORI ── -->
       <section class="page" id="page-categories">
-        <h2 class="page-title">Manajemen Kategori</h2>
+        <h2 class="page-title"><i class="bi bi-tags-fill me-2" style="color:#AEFF1C;-webkit-text-stroke:1px #104042"></i>Kategori</h2>
         <div class="two-col-layout">
           <div class="card">
             <h3 class="card-title">Tambah / Edit Kategori</h3>
@@ -268,9 +375,11 @@
               </div>
               <div class="form-group">
                 <label for="catColor">Warna</label>
-                <input type="color" id="catColor" value="#6366f1" />
+                <input type="color" id="catColor" value="#104042" />
               </div>
-              <button type="submit" class="btn-add" id="btnSaveCategory">+ Tambah Kategori</button>
+              <button type="submit" class="btn-add" id="btnSaveCategory">
+                <i class="bi bi-plus-circle me-1"></i>Tambah Kategori
+              </button>
             </form>
           </div>
           <div class="card">
@@ -287,7 +396,7 @@
 
       <!-- ── LAPORAN ── -->
       <section class="page" id="page-report">
-        <h2 class="page-title">Laporan Transaksi</h2>
+        <h2 class="page-title"><i class="bi bi-file-earmark-bar-graph-fill me-2" style="color:#104042"></i>Laporan Transaksi</h2>
         <div class="card">
           <div class="report-toolbar">
             <div class="filter-tabs">
@@ -297,7 +406,9 @@
             </div>
             <div class="report-filters">
               <input type="month" id="reportMonth" title="Filter bulan" />
-              <button class="btn-export" id="btnExport">📊 Export Excel</button>
+              <button class="btn-export" id="btnExport">
+                <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+              </button>
             </div>
           </div>
           <div class="list-wrapper" id="reportList" style="max-height:600px">
@@ -308,7 +419,7 @@
 
       <!-- ── USER MANAGEMENT ── -->
       <section class="page" id="page-users">
-        <h2 class="page-title">User Management</h2>
+        <h2 class="page-title"><i class="bi bi-people-fill me-2" style="color:#104042"></i>User Management</h2>
         <div class="card">
           <div class="users-toolbar">
             <input type="text" id="userSearch" placeholder="🔍 Cari nama atau email..." class="search-input" />
@@ -323,6 +434,19 @@
   </div><!-- /main-wrapper -->
 </div><!-- /appScreen -->
 
+<!-- Fibank JS -->
+<script src="assets/js/jquery-3.5.1.min.js"></script>
+<script src="assets/js/bootstrap.min.js"></script>
+<script src="assets/js/aos.js"></script>
+<script src="assets/js/wow.min.js"></script>
+
+<!-- Init AOS & WOW -->
+<script>
+  AOS.init({ duration: 800, once: true });
+  if (typeof WOW !== 'undefined') new WOW().init();
+</script>
+
+<!-- App JS -->
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
