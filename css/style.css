@@ -84,7 +84,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0a1a0a url('../background.jpeg') center center / cover no-repeat;
+  background: #0a1a0a url('../background.jpeg') center 39% / cover no-repeat;
   position: relative;
   overflow: hidden;
 }
