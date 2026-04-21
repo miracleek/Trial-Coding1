@@ -77,38 +77,38 @@ body {
 [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
 [data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
-/* Dark mode — form fields lebih terang biar keliatan */
+/* Dark mode — form fields netral terang */
 [data-theme="dark"] .form-group input,
 [data-theme="dark"] .form-group select {
-  background: #1e2e1e;
+  background: #2a2a2a;
   color: #ffffff;
-  border-color: #3a4e3a;
+  border-color: #444444;
 }
-[data-theme="dark"] .form-group input::placeholder { color: #6a8a6a; }
+[data-theme="dark"] .form-group input::placeholder { color: #888888; }
 [data-theme="dark"] .form-group input:focus,
 [data-theme="dark"] .form-group select:focus {
-  background: #243424;
+  background: #333333;
   border-color: #AEFF1C;
   color: #ffffff;
 }
 [data-theme="dark"] .amount-wrapper {
-  background: #1e2e1e;
-  border-color: #3a4e3a;
+  background: #2a2a2a;
+  border-color: #444444;
 }
 [data-theme="dark"] .amount-wrapper input {
-  background: #1e2e1e;
+  background: #2a2a2a;
   color: #ffffff;
 }
 [data-theme="dark"] .amount-prefix {
-  background: #162616;
-  color: #8a9e8a;
-  border-right-color: #3a4e3a;
+  background: #222222;
+  color: #aaaaaa;
+  border-right-color: #444444;
 }
 [data-theme="dark"] .amount-wrapper:focus-within {
   border-color: #AEFF1C;
-  background: #243424;
+  background: #333333;
 }
-[data-theme="dark"] .amount-wrapper:focus-within input { background: #243424; }
+[data-theme="dark"] .amount-wrapper:focus-within input { background: #333333; }
 
 /* ===========================
    Login Screen — Full Page
