@@ -433,7 +433,7 @@ body {
   transition: transform 0.2s;
 }
 .summary-card:hover { transform: translateY(-2px); }
-.summary-card.income  { background: #000000; color: #AEFF1C; }
+.summary-card.income  { background: #AEFF1C; color: #000000; }
 .summary-card.expense { background: var(--expense); color: #fff; }
 .summary-card.balance { background: #104042; color: #AEFF1C; }
 .summary-card.balance.negative { background: #dc2626; color: #fff; }
