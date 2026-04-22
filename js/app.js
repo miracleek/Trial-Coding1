@@ -120,8 +120,17 @@ function navigateTo(page) {
     p.classList.toggle('active', p.id === 'page-' + page)
   );
   if (page === 'dashboard') renderCharts();
-  if (page === 'report')    renderReport();
-  if (page === 'users')     renderUsers();
+  if (page === 'report') {
+    // Reset filter state setiap buka laporan
+    reportFilter  = 'Semua';
+    reportMonth   = '';
+    document.getElementById('reportMonth').value = '';
+    document.querySelectorAll('#page-report [data-filter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === 'Semua');
+    });
+    renderReport();
+  }
+  if (page === 'users')      renderUsers();
   if (page === 'categories') renderCategoryList();
 }
 
@@ -242,17 +251,23 @@ async function showApp(user) {
   bindAmountMask('incomeAmount',  () => rawIncomeAmt,  v => { rawIncomeAmt  = v; });
   bindAmountMask('expenseAmount', () => rawExpenseAmt, v => { rawExpenseAmt = v; });
 
-  // Report filter tabs
-  document.querySelectorAll('[data-filter]').forEach(btn => {
+  // Report filter tabs — scope ke #page-report saja
+  document.querySelectorAll('#page-report [data-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#page-report [data-filter]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       reportFilter = btn.dataset.filter;
       renderReport();
     });
   });
   document.getElementById('reportMonth').addEventListener('change', e => {
-    reportMonth = e.target.value;
+    reportMonth = e.target.value; // format: "2026-04"
+    renderReport();
+  });
+  // Tombol clear bulan — reset ke semua bulan
+  document.getElementById('btnClearMonth').addEventListener('click', () => {
+    reportMonth = '';
+    document.getElementById('reportMonth').value = '';
     renderReport();
   });
   document.getElementById('btnExport').addEventListener('click', handleExport);
@@ -272,6 +287,9 @@ async function showApp(user) {
 
   // User search
   document.getElementById('userSearch').addEventListener('input', renderUsers);
+
+  // Bersihkan emoji dari semua transaksi lama sekali saat login
+  stripEmojiFromAllTransactions();
 
   if (currentUserRole === 'admin') await runMigrationIfNeeded(user.uid);
   listenCategories(user.uid);
@@ -304,6 +322,10 @@ function listenCategories(uid) {
     populateCategorySelect('incomeCategory',  'Pendapatan');
     populateCategorySelect('expenseCategory', 'Pengeluaran');
     if (activePage === 'categories') renderCategoryList();
+    if (activePage === 'report')     renderReport();
+    if (activePage === 'income')     renderIncomeList();
+    if (activePage === 'expense')    renderExpenseList();
+    if (activePage === 'dashboard')  renderCharts();
   }, err => console.error('cats listener:', err));
 }
 
@@ -363,14 +385,44 @@ function populateCategorySelect(selectId, type) {
   datalist.innerHTML = '';
   categories.filter(c => c.type === type).forEach(c => {
     const opt = document.createElement('option');
-    opt.value = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
+    // value = nama saja (tanpa emoji), label = emoji + nama untuk display
+    opt.value = c.name;
+    opt.label = (ICON_MAP[c.icon] || c.icon || '•') + ' ' + c.name;
     datalist.appendChild(opt);
   });
   if (prev) input.value = prev;
 }
 
+// Fallback colors untuk kategori umum
+const FALLBACK_COLORS = {
+  'makan': '#f97316', 'belanja': '#6366f1', 'bensin': '#0ea5e9',
+  'transportasi': '#3b82f6', 'transfer': '#ec4899', 'topup': '#a855f7',
+  'tarik tunai': '#8b5cf6', 'obat': '#06b6d4', 'paylater': '#eab308',
+  'gaji': '#10b981', 'freelance': '#06b6d4', 'investasi': '#f59e0b',
+  'lainnya': '#6b7280',
+};
+
+// Strip emoji & special chars dari string
+function stripEmoji(str) {
+  return (str || '').replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+    .replace(/[\u2600-\u27BF]/gu, '')
+    .replace(/\uFE0F/g, '')
+    .trim();
+}
+
 function getCatMeta(name) {
-  return categories.find(c => c.name === name) || { icon: 'plus', color: '#94a3b8' };
+  if (!name) return { icon: 'plus', color: '#94a3b8' };
+  const cleanName = stripEmoji(name);
+  // Exact match
+  let cat = categories.find(c => c.name === name);
+  // Match setelah strip emoji
+  if (!cat) cat = categories.find(c => c.name === cleanName);
+  // Case-insensitive
+  if (!cat) cat = categories.find(c => c.name.trim().toLowerCase() === cleanName.toLowerCase());
+  if (cat) return cat;
+  // Fallback hardcoded
+  const fallbackColor = FALLBACK_COLORS[cleanName.toLowerCase()] || '#94a3b8';
+  return { icon: 'plus', color: fallbackColor };
 }
 
 // ── Income List ────────────────────────────────────────────
@@ -416,16 +468,18 @@ function txItemHTML(tx) {
 function renderReport() {
   const el    = document.getElementById('reportList');
   const empty = document.getElementById('reportEmpty');
-  if (!el || !empty) return;
-  let list = transactions.slice().sort((a,b) => b.date.localeCompare(a.date));
+  if (!el) return;
+
+  let list = transactions.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
   if (reportFilter !== 'Semua') list = list.filter(t => t.type === reportFilter);
-  if (reportMonth) list = list.filter(t => t.date.startsWith(reportMonth));
+  if (reportMonth)              list = list.filter(t => t.date && t.date.substring(0,7) === reportMonth);
+
   if (list.length === 0) {
     el.innerHTML = '';
-    empty.style.display = 'block';
+    if (empty) empty.style.display = 'block';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
   el.innerHTML = list.map(tx => txItemHTML(tx)).join('');
   el.querySelectorAll('.btn-delete').forEach(btn =>
     btn.addEventListener('click', () => handleDelete(btn.dataset.id))
@@ -481,32 +535,32 @@ function renderPieChart({ txList, canvasId, emptyId, ref }) {
   const data    = Object.values(totals);
   const colors  = labels.map(l => getCatMeta(l).color || '#94a3b8');
   const hasData = labels.length > 0;
+
   canvas.style.display  = hasData ? 'block' : 'none';
-  emptyEl.style.display = hasData ? 'none'  : 'block';
+  if (emptyEl) emptyEl.style.display = hasData ? 'none' : 'block';
+
+  // Selalu destroy dulu biar ukuran tidak stuck
   const existing = ref === 'expense' ? expenseChart : incomeChart;
-  if (!hasData) {
-    if (existing) existing.destroy();
-    if (ref === 'expense') expenseChart = null; else incomeChart = null;
-    return;
-  }
-  if (existing) {
-    existing.data.labels = labels;
-    existing.data.datasets[0].data = data;
-    existing.data.datasets[0].backgroundColor = colors;
-    existing.update(); return;
-  }
+  if (existing) { existing.destroy(); }
+  if (ref === 'expense') expenseChart = null; else incomeChart = null;
+
+  if (!hasData) return;
+
   const instance = new Chart(canvas, {
     type: 'pie',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: 'transparent', hoverOffset: 8 }] },
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: 'transparent', hoverOffset: 4 }] },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
       plugins: {
-        legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 }, usePointStyle: true } },
+        legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 }, usePointStyle: true, boxWidth: 10 } },
         tooltip: { callbacks: { label(ctx) {
           const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
           return ' ' + formatRupiah(ctx.parsed) + ' (' + ((ctx.parsed/total)*100).toFixed(1) + '%)';
         }}},
       },
+      onHover: null,
     },
   });
   if (ref === 'expense') expenseChart = instance; else incomeChart = instance;
@@ -519,10 +573,19 @@ function renderCategoryList() {
   const list = categories.filter(c => c.type === catFilter);
   const isAdmin = currentUserRole === 'admin';
   if (list.length === 0) { el.innerHTML = '<p class="empty-state">Belum ada kategori.</p>'; return; }
+
+  // Fallback warna per kategori
+  const colorMap = {
+    'Belanja': '#6366f1', 'Bensin': '#0ea5e9', 'Makan': '#f97316', 'Obat': '#06b6d4',
+    'Paylater': '#eab308', 'Tarik Tunai': '#8b5cf6', 'Topup': '#a855f7', 'Transfer': '#ec4899',
+    'Transportasi': '#3b82f6', 'Gaji': '#10b981', 'Freelance': '#06b6d4', 'Investasi': '#f59e0b', 'Lainnya': '#6b7280',
+  };
+
   el.innerHTML = list.map(c => {
     const icon = ICON_MAP[c.icon] || c.icon || '•';
+    const color = c.color || colorMap[c.name] || '#6b7280';
     return `<div class="cat-item">
-      <span class="cat-swatch" style="background:${c.color}">${icon}</span>
+      <span class="cat-swatch" style="background-color:${color}!important;">${icon}</span>
       <span class="cat-name">${escapeHTML(c.name)}</span>
       <span class="cat-type-badge ${c.type === 'Pendapatan' ? 'income' : 'expense'}">${c.type}</span>
       ${isAdmin ? `<div class="cat-actions">
@@ -553,6 +616,7 @@ async function handleCategorySubmit(e) {
   errEl.textContent = '';
   const btn = document.getElementById('btnSaveCategory');
   btn.disabled = true;
+  btn.textContent = 'Menyimpan...';
   try {
     if (editingCatId) {
       await updateDoc(doc(db, SHARED_CATS_COLLECTION, editingCatId), { name, type, icon, color });
@@ -564,7 +628,24 @@ async function handleCategorySubmit(e) {
     e.target.reset();
     document.getElementById('catColor').value = '#6366f1';
   } catch (err) { console.error('save category:', err); alert('Gagal menyimpan kategori.'); }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; btn.textContent = editingCatId ? '💾 Simpan Perubahan' : '+ Tambah Kategori'; }
+}
+
+// Strip emoji dari semua tx.category yang masih ada emoji
+async function stripEmojiFromAllTransactions() {
+  if (!currentUser) return;
+  try {
+    const txSnap = await getDocs(collection(db, 'users', currentUser.uid, 'transactions'));
+    const updates = [];
+    txSnap.docs.forEach(d => {
+      const cat = d.data().category || '';
+      const clean = stripEmoji(cat);
+      if (clean !== cat) {
+        updates.push(updateDoc(doc(db, 'users', currentUser.uid, 'transactions', d.id), { category: clean }));
+      }
+    });
+    if (updates.length > 0) await Promise.all(updates);
+  } catch (err) { console.error('stripEmojiFromAllTransactions:', err); }
 }
 
 function startEditCategory(id) {
@@ -615,7 +696,9 @@ async function saveTx(tx, prefix) {
   const btn = document.querySelector(`#${prefix}Form button[type=submit]`);
   btn.disabled = true; btn.textContent = 'Menyimpan...';
   try {
-    await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), { ...tx, createdAt: Date.now() });
+    // Strip emoji dari category sebelum save
+    const cleanTx = { ...tx, category: stripEmoji(tx.category), createdAt: Date.now() };
+    await addDoc(collection(db, 'users', currentUser.uid, 'transactions'), cleanTx);
     document.getElementById(`${prefix}Form`).reset();
     if (prefix === 'income')  { rawIncomeAmt  = ''; document.getElementById('incomeDate').value  = ''; }
     if (prefix === 'expense') { rawExpenseAmt = ''; document.getElementById('expenseDate').value = ''; }
@@ -731,10 +814,14 @@ async function renderUsers() {
 function handleExport() {
   let list = transactions.slice().sort((a,b) => a.date.localeCompare(b.date));
   if (reportFilter !== 'Semua') list = list.filter(t => t.type === reportFilter);
-  if (reportMonth) list = list.filter(t => t.date.startsWith(reportMonth));
+  if (reportMonth) list = list.filter(t => t.date && t.date.substring(0,7) === reportMonth);
   if (list.length === 0) { alert('Tidak ada data untuk di-export.'); return; }
+
+  // Strip emoji & special chars dari kategori untuk Excel
+  const cleanText = str => (str || '').replace(/[\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7E\u00C0-\u024F\u0100-\u017E]/g, '').trim();
+
   const header = ['Tanggal','Nama Item','Tipe','Kategori','Jumlah (Rp)'];
-  const rows   = list.map(t => [formatDate(t.date), t.name, t.type, t.category, t.amount]);
+  const rows   = list.map(t => [formatDate(t.date), t.name, t.type, cleanText(t.category), t.amount]);
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
   ws['!cols'] = [{ wch:14 },{ wch:30 },{ wch:14 },{ wch:16 },{ wch:18 }];
   const wb = XLSX.utils.book_new();
