@@ -191,6 +191,7 @@ async function getUserRole(uid) {
 
 // ── Show Login ─────────────────────────────────────────────
 function showLogin() {
+  document.getElementById('authLoading').classList.add('hidden');
   loginScreen.style.display = 'flex';
   appScreen.style.display   = 'none';
   if (unsubTx)   { unsubTx();   unsubTx   = null; }
@@ -204,6 +205,7 @@ function showLogin() {
 
 // ── Show App ───────────────────────────────────────────────
 async function showApp(user) {
+  document.getElementById('authLoading').classList.add('hidden');
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
 
