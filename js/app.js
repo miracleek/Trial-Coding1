@@ -11,6 +11,10 @@ import {
   setDoc, getDoc, getDocs, updateDoc,
 } from "./firebase.js";
 
+// ── Shared categories Firestore path ──────────────────────
+// Admin writes to 'sharedCategories', all users read from it.
+const SHARED_CATS_COLLECTION = 'sharedCategories';
+
 // ── Constants ──────────────────────────────────────────────
 const THEME_KEY  = 'finance_tracker_theme';
 const ADMIN_EMAIL = 'eduworkrin@gmail.com';
@@ -199,7 +203,7 @@ function showLogin() {
 }
 
 // ── Show App ───────────────────────────────────────────────
-function showApp(user) {
+async function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
 
@@ -209,10 +213,16 @@ function showApp(user) {
   if (user.photoURL) { avatarEl.src = user.photoURL; avatarEl.style.display = 'block'; }
   else { avatarEl.style.display = 'none'; }
 
-  // Show/hide admin-only nav items
+  // Show/hide admin-only nav items and elements
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = currentUserRole === 'admin' ? '' : 'none';
   });
+
+  // Update category page title based on role
+  const catPageTitle = document.querySelector('#page-categories .page-title');
+  if (catPageTitle) {
+    catPageTitle.textContent = currentUserRole === 'admin' ? 'Manajemen Kategori' : 'Daftar Kategori';
+  }
 
   document.getElementById('btnLogout').addEventListener('click', async () => {
     if (unsubTx)   { unsubTx();   unsubTx   = null; }
@@ -261,6 +271,7 @@ function showApp(user) {
   // User search
   document.getElementById('userSearch').addEventListener('input', renderUsers);
 
+  if (currentUserRole === 'admin') await runMigrationIfNeeded(user.uid);
   listenCategories(user.uid);
   listenTransactions(user.uid);
 }
@@ -281,24 +292,51 @@ function listenTransactions(uid) {
 
 function listenCategories(uid) {
   if (unsubCats) unsubCats();
-  const q = query(collection(db, 'users', uid, 'categories'), orderBy('name', 'asc'));
-  unsubCats = onSnapshot(q, async snap => {
-    categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Seed defaults if empty
-    if (categories.length === 0) {
-      await seedDefaultCategories(uid);
-      return;
-    }
+  // All users read from the shared collection; only admin can write to it.
+  // No orderBy to avoid index requirement — sort client-side instead.
+  const q = collection(db, SHARED_CATS_COLLECTION);
+  unsubCats = onSnapshot(q, snap => {
+    categories = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => a.name.localeCompare(b.name));
     populateCategorySelect('incomeCategory',  'Pendapatan');
     populateCategorySelect('expenseCategory', 'Pengeluaran');
     if (activePage === 'categories') renderCategoryList();
   }, err => console.error('cats listener:', err));
 }
 
-async function seedDefaultCategories(uid) {
+// Run once on admin login: wipe sharedCategories and re-import from old per-user path.
+// Guarded by a session flag so it never runs twice.
+let migrationDone = false;
+async function runMigrationIfNeeded(uid) {
+  if (migrationDone) return;
+  migrationDone = true;
+  try {
+    const oldSnap = await getDocs(collection(db, 'users', uid, 'categories'));
+    if (oldSnap.empty) return;
+
+    const sharedSnap = await getDocs(collection(db, SHARED_CATS_COLLECTION));
+    for (const d of sharedSnap.docs) {
+      await deleteDoc(doc(db, SHARED_CATS_COLLECTION, d.id));
+    }
+
+    const seen = new Set();
+    for (const d of oldSnap.docs) {
+      const data = d.data();
+      const key = data.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await addDoc(collection(db, SHARED_CATS_COLLECTION), data);
+    }
+  } catch (err) {
+    console.error('[migrate] ERROR:', err);
+  }
+}
+
+async function seedDefaultCategories() {
   const all = [...DEFAULT_EXPENSE_CATS, ...DEFAULT_INCOME_CATS];
   for (const cat of all) {
-    await addDoc(collection(db, 'users', uid, 'categories'), cat);
+    await addDoc(collection(db, SHARED_CATS_COLLECTION), cat);
   }
 }
 
@@ -376,6 +414,7 @@ function txItemHTML(tx) {
 function renderReport() {
   const el    = document.getElementById('reportList');
   const empty = document.getElementById('reportEmpty');
+  if (!el || !empty) return;
   let list = transactions.slice().sort((a,b) => b.date.localeCompare(a.date));
   if (reportFilter !== 'Semua') list = list.filter(t => t.type === reportFilter);
   if (reportMonth) list = list.filter(t => t.date.startsWith(reportMonth));
@@ -476,6 +515,7 @@ function renderPieChart({ txList, canvasId, emptyId, ref }) {
 function renderCategoryList() {
   const el   = document.getElementById('categoryList');
   const list = categories.filter(c => c.type === catFilter);
+  const isAdmin = currentUserRole === 'admin';
   if (list.length === 0) { el.innerHTML = '<p class="empty-state">Belum ada kategori.</p>'; return; }
   el.innerHTML = list.map(c => {
     const icon = ICON_MAP[c.icon] || c.icon || '•';
@@ -483,23 +523,25 @@ function renderCategoryList() {
       <span class="cat-swatch" style="background:${c.color}">${icon}</span>
       <span class="cat-name">${escapeHTML(c.name)}</span>
       <span class="cat-type-badge ${c.type === 'Pendapatan' ? 'income' : 'expense'}">${c.type}</span>
-      <div class="cat-actions">
+      ${isAdmin ? `<div class="cat-actions">
         <button class="btn-cat-edit" data-id="${c.id}" title="Edit">✏️</button>
         <button class="btn-cat-del"  data-id="${c.id}" title="Hapus">🗑️</button>
-      </div>
+      </div>` : ''}
     </div>`;
   }).join('');
-  el.querySelectorAll('.btn-cat-edit').forEach(btn =>
-    btn.addEventListener('click', () => startEditCategory(btn.dataset.id))
-  );
-  el.querySelectorAll('.btn-cat-del').forEach(btn =>
-    btn.addEventListener('click', () => deleteCategory(btn.dataset.id))
-  );
+  if (isAdmin) {
+    el.querySelectorAll('.btn-cat-edit').forEach(btn =>
+      btn.addEventListener('click', () => startEditCategory(btn.dataset.id))
+    );
+    el.querySelectorAll('.btn-cat-del').forEach(btn =>
+      btn.addEventListener('click', () => deleteCategory(btn.dataset.id))
+    );
+  }
 }
 
 async function handleCategorySubmit(e) {
   e.preventDefault();
-  if (!currentUser) return;
+  if (!currentUser || currentUserRole !== 'admin') return;
   const name  = document.getElementById('catName').value.trim();
   const type  = document.getElementById('catType').value;
   const icon  = document.getElementById('catIcon').value.trim() || 'plus';
@@ -511,11 +553,11 @@ async function handleCategorySubmit(e) {
   btn.disabled = true;
   try {
     if (editingCatId) {
-      await updateDoc(doc(db, 'users', currentUser.uid, 'categories', editingCatId), { name, type, icon, color });
+      await updateDoc(doc(db, SHARED_CATS_COLLECTION, editingCatId), { name, type, icon, color });
       editingCatId = null;
       btn.textContent = '+ Tambah Kategori';
     } else {
-      await addDoc(collection(db, 'users', currentUser.uid, 'categories'), { name, type, icon, color });
+      await addDoc(collection(db, SHARED_CATS_COLLECTION), { name, type, icon, color });
     }
     e.target.reset();
     document.getElementById('catColor').value = '#6366f1';
@@ -536,8 +578,8 @@ function startEditCategory(id) {
 }
 
 async function deleteCategory(id) {
-  if (!currentUser || !confirm('Hapus kategori ini?')) return;
-  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'categories', id)); }
+  if (!currentUser || currentUserRole !== 'admin' || !confirm('Hapus kategori ini?')) return;
+  try { await deleteDoc(doc(db, SHARED_CATS_COLLECTION, id)); }
   catch (err) { console.error('delete category:', err); alert('Gagal menghapus.'); }
 }
 
