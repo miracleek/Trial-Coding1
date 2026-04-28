@@ -716,7 +716,7 @@ body {
 .btn-clear-month:hover { border-color: var(--expense); color: var(--expense); }
 
 /* Category list */
-.cat-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.cat-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .category-list { display: flex; flex-direction: column; gap: 8px; }
 .cat-item {
   display: flex; align-items: center; gap: 12px;

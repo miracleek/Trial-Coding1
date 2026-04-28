@@ -282,6 +282,8 @@ async function showApp(user) {
     });
   });
 
+  // Tombol sync kategori (admin only) — dihapus, sync jalan otomatis
+
   // Dashboard period filter
   document.getElementById('dashPeriod').addEventListener('change', () => renderCharts());
 
@@ -312,8 +314,6 @@ function listenTransactions(uid) {
 
 function listenCategories(uid) {
   if (unsubCats) unsubCats();
-  // All users read from the shared collection; only admin can write to it.
-  // No orderBy to avoid index requirement — sort client-side instead.
   const q = collection(db, SHARED_CATS_COLLECTION);
   unsubCats = onSnapshot(q, snap => {
     categories = snap.docs
@@ -326,6 +326,10 @@ function listenCategories(uid) {
     if (activePage === 'income')     renderIncomeList();
     if (activePage === 'expense')    renderExpenseList();
     if (activePage === 'dashboard')  renderCharts();
+
+    // Auto-sync: setiap kali kategori berubah (dari app maupun Firestore console),
+    // perbaiki transaksi yang nama kategorinya sudah tidak match
+    syncAllCategoryNames();
   }, err => console.error('cats listener:', err));
 }
 
@@ -614,21 +618,106 @@ async function handleCategorySubmit(e) {
   const errEl = document.getElementById('err-catName');
   if (!name) { errEl.textContent = 'Nama kategori wajib diisi.'; return; }
   errEl.textContent = '';
-  const btn = document.getElementById('btnSaveCategory');
-  btn.disabled = true;
+
+  const btn       = document.getElementById('btnSaveCategory');
+  const isEditing = !!editingCatId;
+  const savingId  = editingCatId;
+  const oldCat    = isEditing ? categories.find(c => c.id === savingId) : null;
+
+  btn.disabled    = true;
   btn.textContent = 'Menyimpan...';
+
   try {
-    if (editingCatId) {
-      await updateDoc(doc(db, SHARED_CATS_COLLECTION, editingCatId), { name, type, icon, color });
-      editingCatId = null;
-      btn.textContent = '+ Tambah Kategori';
+    if (isEditing) {
+      console.log(`[handleCategorySubmit] Edit "${oldCat?.name}" → "${name}"`);
+      await updateDoc(doc(db, SHARED_CATS_COLLECTION, savingId), { name, type, icon, color });
+      // Langsung sync transaksi — jangan tunggu listener
+      if (oldCat && oldCat.name !== name) {
+        await syncCategoryInTransactions(oldCat.name, name);
+      }
     } else {
+      console.log(`[handleCategorySubmit] Tambah kategori baru: "${name}"`);
       await addDoc(collection(db, SHARED_CATS_COLLECTION), { name, type, icon, color });
     }
+    editingCatId = null;
     e.target.reset();
     document.getElementById('catColor').value = '#6366f1';
-  } catch (err) { console.error('save category:', err); alert('Gagal menyimpan kategori.'); }
-  finally { btn.disabled = false; btn.textContent = editingCatId ? '💾 Simpan Perubahan' : '+ Tambah Kategori'; }
+    btn.textContent = '+ Tambah Kategori';
+  } catch (err) {
+    console.error('save category:', err);
+    alert('Gagal menyimpan kategori: ' + err.message);
+    btn.textContent = isEditing ? '💾 Simpan Perubahan' : '+ Tambah Kategori';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Ganti nama kategori lama → baru di semua transaksi user yang sedang login
+async function syncCategoryInTransactions(oldName, newName) {
+  if (!currentUser) return;
+  try {
+    const txSnap = await getDocs(collection(db, 'users', currentUser.uid, 'transactions'));
+    const updates = [];
+    txSnap.docs.forEach(d => {
+      const txCat = stripEmoji(d.data().category || '').trim();
+      if (txCat === oldName || txCat.toLowerCase() === oldName.toLowerCase()) {
+        updates.push(updateDoc(doc(db, 'users', currentUser.uid, 'transactions', d.id), { category: newName }));
+      }
+    });
+    if (updates.length > 0) {
+      await Promise.all(updates);
+      console.log(`[syncCategoryInTransactions] ${updates.length} transaksi: "${oldName}" → "${newName}"`);
+      renderSummary();
+      renderIncomeList();
+      renderExpenseList();
+      if (activePage === 'dashboard') renderCharts();
+      if (activePage === 'report')    renderReport();
+    }
+  } catch (err) { console.error('syncCategoryInTransactions:', err); }
+}
+
+// Auto-sync via listener: jalan setiap kali kategori berubah dari Firestore console
+// (bukan dari app — kalau dari app sudah ditangani syncCategoryInTransactions)
+async function syncAllCategoryNames() {
+  if (!currentUser || categories.length === 0) return;
+  try {
+    const txSnap = await getDocs(collection(db, 'users', currentUser.uid, 'transactions'));
+    const catNames = categories.map(c => c.name);
+    const updates  = [];
+
+    txSnap.docs.forEach(d => {
+      const txCat = stripEmoji(d.data().category || '').trim();
+      if (!txCat || catNames.includes(txCat)) return; // sudah match → skip
+
+      // 1. Case-insensitive exact
+      let match = catNames.find(n => n.toLowerCase() === txCat.toLowerCase());
+
+      // 2. Word-based: pecah per kata, hitung overlap
+      if (!match) {
+        const txWords = txCat.toLowerCase().replace(/[\/\-_]/g, ' ').split(/\s+/).filter(Boolean);
+        match = catNames.find(n => {
+          const catWords = n.toLowerCase().replace(/[\/\-_]/g, ' ').split(/\s+/).filter(Boolean);
+          const shared   = txWords.filter(w => catWords.some(cw => cw === w));
+          return shared.length / Math.max(txWords.length, catWords.length) >= 0.5;
+        });
+      }
+
+      if (match) {
+        console.log(`[syncAllCategoryNames] "${txCat}" → "${match}"`);
+        updates.push(updateDoc(doc(db, 'users', currentUser.uid, 'transactions', d.id), { category: match }));
+      }
+    });
+
+    if (updates.length > 0) {
+      await Promise.all(updates);
+      console.log(`✅ Auto-sync: ${updates.length} transaksi diperbarui.`);
+      renderSummary();
+      renderIncomeList();
+      renderExpenseList();
+      if (activePage === 'dashboard') renderCharts();
+      if (activePage === 'report')    renderReport();
+    }
+  } catch (err) { console.error('syncAllCategoryNames:', err); }
 }
 
 // Strip emoji dari semua tx.category yang masih ada emoji
@@ -651,6 +740,7 @@ async function stripEmojiFromAllTransactions() {
 function startEditCategory(id) {
   const cat = categories.find(c => c.id === id);
   if (!cat) return;
+  console.log(`[startEditCategory] Edit kategori:`, cat);
   editingCatId = id;
   document.getElementById('catName').value  = cat.name;
   document.getElementById('catType').value  = cat.type;
