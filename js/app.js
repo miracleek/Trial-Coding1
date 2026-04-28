@@ -667,6 +667,15 @@ async function syncCategoryInTransactions(oldName, newName) {
     if (updates.length > 0) {
       await Promise.all(updates);
       console.log(`[syncCategoryInTransactions] ${updates.length} transaksi: "${oldName}" → "${newName}"`);
+      // Update array transactions di memory supaya render langsung pakai nama baru
+      // tanpa harus tunggu onSnapshot propagate
+      transactions = transactions.map(t => {
+        const txCat = stripEmoji(t.category || '').trim();
+        if (txCat === oldName || txCat.toLowerCase() === oldName.toLowerCase()) {
+          return { ...t, category: newName };
+        }
+        return t;
+      });
       renderSummary();
       renderIncomeList();
       renderExpenseList();
@@ -684,6 +693,7 @@ async function syncAllCategoryNames() {
     const txSnap = await getDocs(collection(db, 'users', currentUser.uid, 'transactions'));
     const catNames = categories.map(c => c.name);
     const updates  = [];
+    const matchMap = {}; // { docId: newName }
 
     txSnap.docs.forEach(d => {
       const txCat = stripEmoji(d.data().category || '').trim();
@@ -704,6 +714,7 @@ async function syncAllCategoryNames() {
 
       if (match) {
         console.log(`[syncAllCategoryNames] "${txCat}" → "${match}"`);
+        matchMap[d.id] = match;
         updates.push(updateDoc(doc(db, 'users', currentUser.uid, 'transactions', d.id), { category: match }));
       }
     });
@@ -711,6 +722,10 @@ async function syncAllCategoryNames() {
     if (updates.length > 0) {
       await Promise.all(updates);
       console.log(`✅ Auto-sync: ${updates.length} transaksi diperbarui.`);
+      // Update memory supaya render langsung pakai nama baru tanpa tunggu onSnapshot
+      transactions = transactions.map(t =>
+        matchMap[t.id] ? { ...t, category: matchMap[t.id] } : t
+      );
       renderSummary();
       renderIncomeList();
       renderExpenseList();
