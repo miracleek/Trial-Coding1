@@ -334,31 +334,11 @@ function listenCategories(uid) {
 }
 
 // Run once on admin login: wipe sharedCategories and re-import from old per-user path.
-// Guarded by a session flag so it never runs twice.
+// Migration sudah tidak diperlukan — sharedCategories dikelola langsung lewat app
+// Fungsi ini dibiarkan kosong agar tidak merusak data yang sudah ada
 let migrationDone = false;
 async function runMigrationIfNeeded(uid) {
-  if (migrationDone) return;
-  migrationDone = true;
-  try {
-    const oldSnap = await getDocs(collection(db, 'users', uid, 'categories'));
-    if (oldSnap.empty) return;
-
-    const sharedSnap = await getDocs(collection(db, SHARED_CATS_COLLECTION));
-    for (const d of sharedSnap.docs) {
-      await deleteDoc(doc(db, SHARED_CATS_COLLECTION, d.id));
-    }
-
-    const seen = new Set();
-    for (const d of oldSnap.docs) {
-      const data = d.data();
-      const key = data.name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      await addDoc(collection(db, SHARED_CATS_COLLECTION), data);
-    }
-  } catch (err) {
-    console.error('[migrate] ERROR:', err);
-  }
+  // no-op: migration disabled
 }
 
 async function seedDefaultCategories() {
