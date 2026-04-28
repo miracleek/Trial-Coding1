@@ -820,9 +820,25 @@ function handleExport() {
   // Strip emoji & special chars dari kategori untuk Excel
   const cleanText = str => (str || '').replace(/[\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7E\u00C0-\u024F\u0100-\u017E]/g, '').trim();
 
+  // Pengeluaran = angka negatif, Pendapatan = angka positif
+  // Disimpan sebagai number supaya SUM/formula Excel bisa jalan
+  const toExcelNumber = (t) => t.type === 'Pengeluaran' ? -(t.amount || 0) : (t.amount || 0);
+
   const header = ['Tanggal','Nama Item','Tipe','Kategori','Jumlah (Rp)'];
-  const rows   = list.map(t => [formatDate(t.date), t.name, t.type, cleanText(t.category), t.amount]);
+  const rows   = list.map(t => [formatDate(t.date), t.name, t.type, cleanText(t.category), toExcelNumber(t)]);
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+  // Format kolom Jumlah (kolom E, index 4) sebagai number dengan titik ribuan
+  // Pengeluaran otomatis tampil merah & minus karena nilainya negatif
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let row = 1; row <= range.e.r; row++) {
+    const cellAddr = XLSX.utils.encode_cell({ r: row, c: 4 });
+    if (ws[cellAddr]) {
+      ws[cellAddr].t = 'n'; // pastikan tipe number
+      ws[cellAddr].z = '#,##0';  // format: 22.000 / -238.590
+    }
+  }
+
   ws['!cols'] = [{ wch:14 },{ wch:30 },{ wch:14 },{ wch:16 },{ wch:18 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
