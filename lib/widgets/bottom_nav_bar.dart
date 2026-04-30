@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -9,29 +10,35 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final d = AppDimensions.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: d.pagePadding,
+        vertical: d.itemSpacing,
+      ),
       decoration: const BoxDecoration(
         color: AppTheme.background,
         border: Border(top: BorderSide(color: AppTheme.borderSide)),
       ),
       child: SafeArea(
+        top: false,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, 0, 'DASHBOARD', Icons.grid_view),
-            _buildNavItem(context, 1, 'INCOME', Icons.account_balance_wallet),
-            _buildNavItem(context, 2, 'EXPENSE', Icons.receipt),
-            _buildNavItem(context, 3, 'TRANSAKSI', Icons.swap_horiz),
-            _buildNavItem(context, 4, 'KATEGORI', Icons.category),
+            _item(context, d, 0, 'DASHBOARD', Icons.grid_view),
+            _item(context, d, 1, 'INCOME', Icons.account_balance_wallet),
+            _item(context, d, 2, 'EXPENSE', Icons.receipt),
+            _item(context, d, 3, 'CATEGORIES', Icons.category),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(
+  Widget _item(
     BuildContext context,
+    AppDimensions d,
     int index,
     String label,
     IconData icon,
@@ -45,10 +52,13 @@ class CustomBottomNavBar extends StatelessWidget {
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: d.cardPadding,
+          vertical: d.itemSpacing * 0.6,
+        ),
         decoration: BoxDecoration(
           color: isActive ? AppTheme.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(12), // Kapsul / Rounded Rect
+          borderRadius: BorderRadius.circular(d.radiusMD),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -56,14 +66,15 @@ class CustomBottomNavBar extends StatelessWidget {
             Icon(
               icon,
               color: isActive ? AppTheme.onPrimary : AppTheme.textMuted,
+              size: d.iconMD,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 3),
             Text(
               label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              style: TextStyle(
+                fontSize: d.fontXS,
                 color: isActive ? AppTheme.onPrimary : AppTheme.textMuted,
                 fontWeight: FontWeight.w800,
-                fontSize: 10,
               ),
             ),
           ],

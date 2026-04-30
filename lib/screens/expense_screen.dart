@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/transaction_card.dart';
+import '../services/firestore_service.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -14,50 +18,55 @@ class ExpenseScreen extends StatefulWidget {
 class _ExpenseScreenState extends State<ExpenseScreen> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
-  String _selectedCategory = 'Makan & Minum';
+  String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
+  bool _saving = false;
 
-  // Local list — akan diganti Firestore di step berikutnya
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'title': 'Dinner at Senopati',
-      'subtitle': 'Makan & Minum • 24 Okt 2024',
-      'amount': -320000.0,
-      'icon': Icons.restaurant,
-    },
-    {
-      'title': 'Uber Ride',
-      'subtitle': 'Transportasi • 23 Okt 2024',
-      'amount': -45000.0,
-      'icon': Icons.directions_car,
-    },
-    {
-      'title': 'Netflix Premium',
-      'subtitle': 'Hiburan • 20 Okt 2024',
-      'amount': -186000.0,
-      'icon': Icons.play_circle_filled,
-    },
-  ];
+  List<Map<String, dynamic>> _transactions = [];
+  List<Map<String, dynamic>> _categories = [];
+  StreamSubscription? _txSub;
+  StreamSubscription? _catSub;
+  bool _loading = true;
 
-  double get _totalExpense =>
-      _transactions.fold(0, (sum, t) => sum + (t['amount'] as double).abs());
-
-  final List<String> _categories = [
-    'Makan & Minum',
-    'Transportasi',
-    'Belanja',
-    'Hiburan',
-    'Kesehatan',
-    'Pendidikan',
-    'Lainnya',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _txSub = FirestoreService.transactionsStream(uid).listen((data) {
+        if (mounted) {
+          setState(() {
+            _transactions = data
+                .where((t) => t['type'] == 'Pengeluaran')
+                .toList();
+            _loading = false;
+          });
+        }
+      });
+    }
+    _catSub = FirestoreService.categoriesStream().listen((data) {
+      if (mounted) {
+        setState(() {
+          _categories = data.where((c) => c['type'] == 'Pengeluaran').toList();
+          if (_selectedCategory == null && _categories.isNotEmpty) {
+            _selectedCategory = _categories.first['name'];
+          }
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _amountController.dispose();
+    _txSub?.cancel();
+    _catSub?.cancel();
     super.dispose();
   }
+
+  double get _totalExpense =>
+      _transactions.fold(0, (s, t) => s + (t['amount'] as num).toDouble());
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -65,8 +74,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.dark(
             primary: AppTheme.danger,
             onPrimary: Colors.white,
@@ -79,14 +88,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  void _saveExpense() {
+  Future<void> _save() async {
     final name = _nameController.text.trim();
     final amountText = _amountController.text
         .replaceAll('.', '')
         .replaceAll(',', '');
     final amount = double.tryParse(amountText);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    if (name.isEmpty || amount == null || amount <= 0) {
+    if (name.isEmpty || amount == null || amount <= 0 || uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Isi nama dan jumlah dengan benar'),
@@ -96,135 +106,125 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       return;
     }
 
-    final dateStr =
-        '${_selectedDate.day} ${_monthName(_selectedDate.month)} ${_selectedDate.year}';
-
-    setState(() {
-      _transactions.insert(0, {
-        'title': name,
-        'subtitle': '$_selectedCategory • $dateStr',
-        'amount': -amount, // negatif untuk pengeluaran
-        'icon': _iconForCategory(_selectedCategory),
-      });
+    setState(() => _saving = true);
+    try {
+      await FirestoreService.addTransaction(
+        uid: uid,
+        name: name,
+        amount: amount,
+        category: _selectedCategory ?? 'Lainnya',
+        date: FirestoreService.formatDate(_selectedDate),
+        type: 'Pengeluaran',
+      );
       _nameController.clear();
       _amountController.clear();
-      _selectedDate = DateTime.now();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pengeluaran berhasil disimpan'),
-        backgroundColor: AppTheme.success,
-      ),
-    );
-  }
-
-  IconData _iconForCategory(String category) {
-    switch (category) {
-      case 'Makan & Minum':
-        return Icons.restaurant;
-      case 'Transportasi':
-        return Icons.directions_car;
-      case 'Belanja':
-        return Icons.shopping_bag;
-      case 'Hiburan':
-        return Icons.play_circle_filled;
-      case 'Kesehatan':
-        return Icons.medication;
-      case 'Pendidikan':
-        return Icons.school;
-      default:
-        return Icons.receipt;
+      setState(() => _selectedDate = DateTime.now());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pengeluaran berhasil disimpan'),
+            backgroundColor: AppTheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  String _monthName(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agt',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return months[month - 1];
+  Future<void> _delete(String id) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirestoreService.deleteTransaction(uid, id);
   }
 
-  String _formatRupiah(double amount) {
-    final str = amount.toStringAsFixed(0);
-    final buffer = StringBuffer();
-    int count = 0;
-    for (int i = str.length - 1; i >= 0; i--) {
-      if (count > 0 && count % 3 == 0) buffer.write('.');
-      buffer.write(str[i]);
-      count++;
+  String _formatRp(double v) {
+    final s = v.toStringAsFixed(0);
+    final buf = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      if (c > 0 && c % 3 == 0) buf.write('.');
+      buf.write(s[i]);
+      c++;
     }
-    return 'Rp ${buffer.toString().split('').reversed.join()}';
+    return 'Rp ${buf.toString().split('').reversed.join()}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final d = AppDimensions.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(d.pagePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Total Expense Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border(
-                left: const BorderSide(color: AppTheme.danger, width: 4),
-                top: const BorderSide(color: AppTheme.borderSide),
-                right: const BorderSide(color: AppTheme.borderSide),
-                bottom: const BorderSide(color: AppTheme.borderSide),
+          // Total Card
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                border: Border.all(color: AppTheme.borderSide),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'TOTAL PENGELUARAN',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatRupiah(_totalExpense),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 24,
-                    color: AppTheme.danger,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.trending_down,
-                      color: AppTheme.danger,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${_transactions.length} transaksi',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: AppTheme.danger),
+                    Container(width: 4, color: AppTheme.danger),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TOTAL PENGELUARAN',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatRp(_totalExpense),
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 24,
+                                    color: AppTheme.danger,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.trending_down,
+                                  color: AppTheme.danger,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${_transactions.length} transaksi',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: AppTheme.danger),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-
           const SizedBox(height: 32),
 
           Text(
@@ -236,7 +236,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Add Form
+          // Form
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -264,7 +264,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // Date picker
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,7 +290,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                                      '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
                                       style: const TextStyle(
                                         color: AppTheme.textMain,
                                         fontSize: 14,
@@ -323,59 +322,77 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppTheme.surfaceHigh,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: AppTheme.borderSide,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: AppTheme.borderSide,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                      ),
-                      dropdownColor: AppTheme.surfaceHigh,
-                      style: const TextStyle(
-                        color: AppTheme.textMain,
-                        fontSize: 14,
-                      ),
-                      items: _categories
-                          .map(
-                            (c) => DropdownMenuItem(value: c, child: Text(c)),
+                    _categories.isEmpty
+                        ? const SizedBox(
+                            height: 48,
+                            child: Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ),
                           )
-                          .toList(),
-                      onChanged: (val) =>
-                          setState(() => _selectedCategory = val!),
-                      icon: const Icon(
-                        Icons.expand_more,
-                        size: 16,
-                        color: AppTheme.textMuted,
-                      ),
-                    ),
+                        : DropdownButtonFormField<String>(
+                            initialValue: _selectedCategory,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppTheme.surfaceHigh,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: AppTheme.borderSide,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: AppTheme.borderSide,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                            ),
+                            dropdownColor: AppTheme.surfaceHigh,
+                            style: const TextStyle(
+                              color: AppTheme.textMain,
+                              fontSize: 14,
+                            ),
+                            items: _categories
+                                .map(
+                                  (c) => DropdownMenuItem(
+                                    value: c['name'] as String,
+                                    child: Text(c['name']),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedCategory = v),
+                            icon: const Icon(
+                              Icons.expand_more,
+                              size: 16,
+                              color: AppTheme.textMuted,
+                            ),
+                          ),
                   ],
                 ),
                 const SizedBox(height: 24),
                 CustomButton(
-                  text: 'Simpan Pengeluaran',
+                  text: _saving ? 'Menyimpan...' : 'Simpan Pengeluaran',
                   type: ButtonType.danger,
-                  onPressed: _saveExpense,
+                  onPressed: _saving ? null : _save,
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 32),
+
+          // List
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -386,7 +403,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               Text(
-                'LIHAT SEMUA',
+                '${_transactions.length} data',
                 style: Theme.of(
                   context,
                 ).textTheme.labelSmall?.copyWith(color: AppTheme.danger),
@@ -395,14 +412,43 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           ),
           const SizedBox(height: 16),
 
-          ..._transactions.map(
-            (t) => TransactionCard(
-              title: t['title'],
-              subtitle: t['subtitle'],
-              amount: t['amount'],
-              iconData: t['icon'],
+          if (_loading)
+            const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            )
+          else if (_transactions.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'Belum ada pengeluaran',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            )
+          else
+            ..._transactions.map(
+              (t) => Dismissible(
+                key: Key(t['id']),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.danger.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.delete, color: AppTheme.danger),
+                ),
+                onDismissed: (_) => _delete(t['id']),
+                child: TransactionCard(
+                  title: t['name'] ?? '',
+                  subtitle: '${t['category'] ?? ''} • ${t['date'] ?? ''}',
+                  amount: -(t['amount'] as num).toDouble(),
+                  iconData: Icons.receipt,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );

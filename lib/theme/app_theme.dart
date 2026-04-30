@@ -28,17 +28,44 @@ class AppTheme {
         surface: surface,
         onSurface: textMain,
         error: danger,
-        background: background,
-        onBackground: textMain,
       ),
       textTheme: const TextTheme(
-        displayLarge: TextStyle(fontSize: 48, fontWeight: FontWeight.w800, letterSpacing: -0.02, color: textMain),
-        displayMedium: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: textMain),
-        displaySmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: textMain),
-        bodyLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: textMain),
-        bodyMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: textMain),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textMain),
-        labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textMuted),
+        displayLarge: TextStyle(
+          fontSize: 48,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.02,
+          color: textMain,
+        ),
+        displayMedium: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          color: textMain,
+        ),
+        displaySmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: textMain,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
+          color: textMain,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: textMain,
+        ),
+        labelLarge: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: textMain,
+        ),
+        labelSmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: textMuted,
+        ),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
@@ -69,7 +96,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: primary, width: 2),
         ),
-        labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textMuted),
+        labelStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: textMuted,
+        ),
         hintStyle: const TextStyle(color: textMuted),
       ),
     );

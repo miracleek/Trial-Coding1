@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/transaction_card.dart';
+import '../services/firestore_service.dart';
 
 class IncomeScreen extends StatefulWidget {
   const IncomeScreen({super.key});
@@ -14,48 +18,55 @@ class IncomeScreen extends StatefulWidget {
 class _IncomeScreenState extends State<IncomeScreen> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
-  String _selectedCategory = 'Gaji';
+  String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
+  bool _saving = false;
 
-  // Local list — akan diganti Firestore di step berikutnya
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'title': 'Gaji Bulanan',
-      'subtitle': 'Gaji • 24 Okt 2024',
-      'amount': 15000000.0,
-      'icon': Icons.payments,
-    },
-    {
-      'title': 'Project UI Design',
-      'subtitle': 'Freelance • 22 Okt 2024',
-      'amount': 4500000.0,
-      'icon': Icons.laptop_mac,
-    },
-    {
-      'title': 'Dividen Saham',
-      'subtitle': 'Investasi • 20 Okt 2024',
-      'amount': 750000.0,
-      'icon': Icons.trending_up,
-    },
-  ];
+  List<Map<String, dynamic>> _transactions = [];
+  List<Map<String, dynamic>> _categories = [];
+  StreamSubscription? _txSub;
+  StreamSubscription? _catSub;
+  bool _loading = true;
 
-  double get _totalIncome =>
-      _transactions.fold(0, (sum, t) => sum + (t['amount'] as double));
-
-  final List<String> _categories = [
-    'Gaji',
-    'Freelance',
-    'Investasi',
-    'Bisnis',
-    'Lainnya',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _txSub = FirestoreService.transactionsStream(uid).listen((data) {
+        if (mounted) {
+          setState(() {
+            _transactions = data
+                .where((t) => t['type'] == 'Pendapatan')
+                .toList();
+            _loading = false;
+          });
+        }
+      });
+    }
+    _catSub = FirestoreService.categoriesStream().listen((data) {
+      if (mounted) {
+        setState(() {
+          _categories = data.where((c) => c['type'] == 'Pendapatan').toList();
+          if (_selectedCategory == null && _categories.isNotEmpty) {
+            _selectedCategory = _categories.first['name'];
+          }
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _amountController.dispose();
+    _txSub?.cancel();
+    _catSub?.cancel();
     super.dispose();
   }
+
+  double get _totalIncome =>
+      _transactions.fold(0, (s, t) => s + (t['amount'] as num).toDouble());
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -63,8 +74,8 @@ class _IncomeScreenState extends State<IncomeScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.dark(
             primary: AppTheme.primary,
             onPrimary: AppTheme.onPrimary,
@@ -77,14 +88,15 @@ class _IncomeScreenState extends State<IncomeScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  void _saveIncome() {
+  Future<void> _save() async {
     final name = _nameController.text.trim();
     final amountText = _amountController.text
         .replaceAll('.', '')
         .replaceAll(',', '');
     final amount = double.tryParse(amountText);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    if (name.isEmpty || amount == null || amount <= 0) {
+    if (name.isEmpty || amount == null || amount <= 0 || uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Isi nama dan jumlah dengan benar'),
@@ -94,118 +106,127 @@ class _IncomeScreenState extends State<IncomeScreen> {
       return;
     }
 
-    final dateStr =
-        '${_selectedDate.day} ${_monthName(_selectedDate.month)} ${_selectedDate.year}';
-
-    setState(() {
-      _transactions.insert(0, {
-        'title': name,
-        'subtitle': '$_selectedCategory • $dateStr',
-        'amount': amount,
-        'icon': Icons.payments,
-      });
+    setState(() => _saving = true);
+    try {
+      await FirestoreService.addTransaction(
+        uid: uid,
+        name: name,
+        amount: amount,
+        category: _selectedCategory ?? 'Lainnya',
+        date: FirestoreService.formatDate(_selectedDate),
+        type: 'Pendapatan',
+      );
       _nameController.clear();
       _amountController.clear();
-      _selectedDate = DateTime.now();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pendapatan berhasil disimpan'),
-        backgroundColor: AppTheme.primary,
-      ),
-    );
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agt',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return months[month - 1];
-  }
-
-  String _formatRupiah(double amount) {
-    final str = amount.toStringAsFixed(0);
-    final buffer = StringBuffer();
-    int count = 0;
-    for (int i = str.length - 1; i >= 0; i--) {
-      if (count > 0 && count % 3 == 0) buffer.write('.');
-      buffer.write(str[i]);
-      count++;
+      setState(() => _selectedDate = DateTime.now());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pendapatan berhasil disimpan'),
+            backgroundColor: AppTheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    return 'Rp ${buffer.toString().split('').reversed.join()}';
+  }
+
+  Future<void> _delete(String id) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirestoreService.deleteTransaction(uid, id);
+  }
+
+  String _formatRp(double v) {
+    final s = v.toStringAsFixed(0);
+    final buf = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      if (c > 0 && c % 3 == 0) buf.write('.');
+      buf.write(s[i]);
+      c++;
+    }
+    return 'Rp ${buf.toString().split('').reversed.join()}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final d = AppDimensions.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(d.pagePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Total Balance Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border(
-                left: const BorderSide(color: AppTheme.primary, width: 4),
-                top: const BorderSide(color: AppTheme.borderSide),
-                right: const BorderSide(color: AppTheme.borderSide),
-                bottom: const BorderSide(color: AppTheme.borderSide),
+          // Total Card
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                border: Border.all(color: AppTheme.borderSide),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'TOTAL PEMASUKAN',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatRupiah(_totalIncome),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 24,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.trending_up,
-                      color: AppTheme.primary,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${_transactions.length} transaksi',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: AppTheme.primary),
+                    Container(width: 4, color: AppTheme.primary),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TOTAL PEMASUKAN',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatRp(_totalIncome),
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 24,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.trending_up,
+                                  color: AppTheme.primary,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${_transactions.length} transaksi',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: AppTheme.primary),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-
           const SizedBox(height: 32),
 
-          // Add Form
+          // Form
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -226,11 +247,6 @@ class _IncomeScreenState extends State<IncomeScreen> {
                         fontSize: 18,
                       ),
                     ),
-                    const Icon(
-                      Icons.add_circle_outline,
-                      color: AppTheme.primary,
-                      size: 24,
-                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -240,38 +256,93 @@ class _IncomeScreenState extends State<IncomeScreen> {
                   controller: _nameController,
                 ),
                 const SizedBox(height: 16),
-                CustomTextField(
-                  label: 'Jumlah (Rp)',
-                  hintText: '0',
-                  controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  prefixIcon: const Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: Text(
-                      'Rp',
-                      style: TextStyle(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                // Jumlah + Tanggal side by side
                 Row(
                   children: [
-                    // Category dropdown
+                    Expanded(
+                      child: CustomTextField(
+                        label: 'Jumlah (Rp)',
+                        hintText: '0',
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Kategori',
+                            'Tanggal',
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(color: AppTheme.textMuted),
                           ),
                           const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: _selectedCategory,
+                          GestureDetector(
+                            onTap: _pickDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfaceHigh,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppTheme.borderSide),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
+                                      style: const TextStyle(
+                                        color: AppTheme.textMain,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 14,
+                                    color: AppTheme.textMuted,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Kategori full width
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kategori',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _categories.isEmpty
+                        ? const SizedBox(
+                            height: 48,
+                            child: Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ),
+                          )
+                        : DropdownButtonFormField<String>(
+                            initialValue: _selectedCategory,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppTheme.surfaceHigh,
@@ -300,78 +371,32 @@ class _IncomeScreenState extends State<IncomeScreen> {
                             items: _categories
                                 .map(
                                   (c) => DropdownMenuItem(
-                                    value: c,
-                                    child: Text(c),
+                                    value: c['name'] as String,
+                                    child: Text(c['name']),
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedCategory = val!),
+                            onChanged: (v) =>
+                                setState(() => _selectedCategory = v),
                             icon: const Icon(
                               Icons.expand_more,
                               size: 16,
                               color: AppTheme.textMuted,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Date picker
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tanggal',
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(color: AppTheme.textMuted),
-                          ),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: _pickDate,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceHigh,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppTheme.borderSide),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                                      style: const TextStyle(
-                                        color: AppTheme.textMain,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.calendar_today,
-                                    size: 14,
-                                    color: AppTheme.textMuted,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
-                CustomButton(text: 'Simpan Pendapatan', onPressed: _saveIncome),
+                CustomButton(
+                  text: _saving ? 'Menyimpan...' : 'Simpan Pendapatan',
+                  onPressed: _saving ? null : _save,
+                ),
               ],
             ),
           ),
-
           const SizedBox(height: 32),
+
+          // List
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -382,7 +407,7 @@ class _IncomeScreenState extends State<IncomeScreen> {
                 ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               Text(
-                'LIHAT SEMUA',
+                '${_transactions.length} data',
                 style: Theme.of(
                   context,
                 ).textTheme.labelSmall?.copyWith(color: AppTheme.primary),
@@ -391,16 +416,45 @@ class _IncomeScreenState extends State<IncomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          ..._transactions.map(
-            (t) => TransactionCard(
-              title: t['title'],
-              subtitle: t['subtitle'],
-              amount: t['amount'],
-              iconData: t['icon'],
-              iconColor: AppTheme.primary,
-              iconBgColor: AppTheme.secondaryDark,
+          if (_loading)
+            const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            )
+          else if (_transactions.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'Belum ada pendapatan',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            )
+          else
+            ..._transactions.map(
+              (t) => Dismissible(
+                key: Key(t['id']),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.danger.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.delete, color: AppTheme.danger),
+                ),
+                onDismissed: (_) => _delete(t['id']),
+                child: TransactionCard(
+                  title: t['name'] ?? '',
+                  subtitle: '${t['category'] ?? ''} • ${t['date'] ?? ''}',
+                  amount: (t['amount'] as num).toDouble(),
+                  iconData: Icons.payments,
+                  iconColor: AppTheme.primary,
+                  iconBgColor: AppTheme.secondaryDark,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );

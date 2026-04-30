@@ -1,30 +1,37 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 import '../services/auth_service.dart';
 
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
-
   const MainShell({super.key, required this.navigationShell});
 
   void _showProfileSheet(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final d = AppDimensions.of(context);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(d.radiusXL)),
       ),
       builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(
+          d.sectionSpacing,
+          d.itemSpacing,
+          d.sectionSpacing,
+          d.sectionSpacing + d.safeBottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
+            // Handle
             Container(
               width: 40,
               height: 4,
@@ -33,74 +40,69 @@ class MainShell extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: d.sectionSpacing),
 
             // Avatar
             CircleAvatar(
-              radius: 40,
+              radius: d.cardAvatarRadius * 2,
               backgroundColor: AppTheme.surfaceHigh,
               backgroundImage: user?.photoURL != null
                   ? NetworkImage(user!.photoURL!)
                   : null,
               child: user?.photoURL == null
-                  ? const Icon(
+                  ? Icon(
                       Icons.person,
-                      size: 40,
+                      size: d.cardAvatarRadius * 2,
                       color: AppTheme.textMuted,
                     )
                   : null,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: d.itemSpacing),
 
-            // Name
             Text(
               user?.displayName ?? 'Pengguna',
-              style: const TextStyle(
-                fontSize: 20,
+              style: TextStyle(
+                fontSize: d.fontXL,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textMain,
               ),
             ),
-            const SizedBox(height: 4),
-
-            // Email
+            SizedBox(height: 4),
             Text(
               user?.email ?? '',
-              style: const TextStyle(fontSize: 14, color: AppTheme.textMuted),
+              style: TextStyle(fontSize: d.fontMD, color: AppTheme.textMuted),
             ),
-            const SizedBox(height: 32),
-
-            // Divider
+            SizedBox(height: d.sectionSpacing),
             const Divider(color: AppTheme.borderSide),
-            const SizedBox(height: 16),
+            SizedBox(height: d.itemSpacing),
 
-            // Logout button
             SizedBox(
               width: double.infinity,
-              height: 52,
+              height: d.buttonHeight,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.danger.withValues(alpha: 0.15),
                   foregroundColor: AppTheme.danger,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(d.radiusMD),
                     side: const BorderSide(color: AppTheme.danger),
                   ),
                 ),
-                icon: const Icon(Icons.logout, size: 20),
-                label: const Text(
+                icon: Icon(Icons.logout, size: d.iconMD),
+                label: Text(
                   'Keluar',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: d.fontLG,
+                  ),
                 ),
                 onPressed: () async {
-                  Navigator.pop(context); // tutup sheet dulu
+                  Navigator.pop(context);
                   await AuthService.signOut();
-                  // GoRouter redirect otomatis ke /login
                 },
               ),
             ),
-            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -110,12 +112,13 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final d = AppDimensions.of(context);
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 56,
         title: Row(
           children: [
-            // Avatar — tap untuk buka profile sheet
             GestureDetector(
               onTap: () => _showProfileSheet(context),
               child: CircleAvatar(
@@ -123,32 +126,32 @@ class MainShell extends StatelessWidget {
                 backgroundImage: user?.photoURL != null
                     ? NetworkImage(user!.photoURL!)
                     : null,
-                radius: 16,
+                radius: d.avatarRadius,
                 child: user?.photoURL == null
-                    ? const Icon(
+                    ? Icon(
                         Icons.person,
-                        size: 16,
+                        size: d.avatarRadius,
                         color: AppTheme.textMuted,
                       )
                     : null,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: d.itemSpacing),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset('assets/app_icon.png', width: 24, height: 24, fit: BoxFit.cover),
+            ),
+            SizedBox(width: 6),
             Text(
-              'FinTrack',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+              'Monity',
+              style: TextStyle(
+                fontSize: d.fontLG,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textMain,
+              ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, size: 22),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: navigationShell,
       bottomNavigationBar: CustomBottomNavBar(navigationShell: navigationShell),

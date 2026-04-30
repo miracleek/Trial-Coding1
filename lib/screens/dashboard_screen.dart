@@ -1,313 +1,597 @@
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 import '../widgets/transaction_card.dart';
+import '../services/firestore_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  List<Map<String, dynamic>> _transactions = [];
+  List<Map<String, dynamic>> _categories = [];
+  StreamSubscription? _txSub;
+  StreamSubscription? _catSub;
+  bool _loading = true;
+  int _chartTab = 0; // 0 = Pengeluaran, 1 = Pemasukan
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _txSub = FirestoreService.transactionsStream(uid).listen((data) {
+        if (mounted)
+          setState(() {
+            _transactions = data;
+            _loading = false;
+          });
+      });
+      _catSub = FirestoreService.categoriesStream().listen((data) {
+        if (mounted) setState(() => _categories = data);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _txSub?.cancel();
+    _catSub?.cancel();
+    super.dispose();
+  }
+
+  double get _totalIncome => _transactions
+      .where((t) => t['type'] == 'Pendapatan')
+      .fold(0.0, (s, t) => s + (t['amount'] as num).toDouble());
+
+  double get _totalExpense => _transactions
+      .where((t) => t['type'] == 'Pengeluaran')
+      .fold(0.0, (s, t) => s + (t['amount'] as num).toDouble());
+
+  double get _balance => _totalIncome - _totalExpense;
+
+  // Top 3 expense categories
+  List<Map<String, dynamic>> get _expenseByCat {
+    final map = <String, double>{};
+    for (final t in _transactions.where((t) => t['type'] == 'Pengeluaran')) {
+      final cat = t['category'] as String? ?? 'Lainnya';
+      map[cat] = (map[cat] ?? 0) + (t['amount'] as num).toDouble();
+    }
+    return (map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+        .take(3)
+        .map((e) => {'name': e.key, 'amount': e.value})
+        .toList();
+  }
+
+  // Top 3 income categories
+  List<Map<String, dynamic>> get _incomeByCat {
+    final map = <String, double>{};
+    for (final t in _transactions.where((t) => t['type'] == 'Pendapatan')) {
+      final cat = t['category'] as String? ?? 'Lainnya';
+      map[cat] = (map[cat] ?? 0) + (t['amount'] as num).toDouble();
+    }
+    return (map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+        .take(4)
+        .map((e) => {'name': e.key, 'amount': e.value})
+        .toList();
+  }
+
+  String _fmt(double v) {
+    final s = v.toStringAsFixed(0);
+    final buf = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      if (c > 0 && c % 3 == 0) buf.write('.');
+      buf.write(s[i]);
+      c++;
+    }
+    return 'Rp ${buf.toString().split('').reversed.join()}';
+  }
+
+  Color _catColor(String name) {
+    final cat = _categories.firstWhere(
+      (c) => c['name'] == name,
+      orElse: () => {'color': '#6b7280'},
+    );
+    final hex = (cat['color'] as String? ?? '#6b7280').replaceAll('#', '');
+    try {
+      return Color(int.parse('FF$hex', radix: 16));
+    } catch (_) {
+      return AppTheme.textMuted;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final d = AppDimensions.of(context);
     final user = FirebaseAuth.instance.currentUser;
     final firstName = user?.displayName?.split(' ').first ?? 'Pengguna';
+    final recent = _transactions.take(5).toList();
+    final expCats = _expenseByCat;
+    final incCats = _incomeByCat;
+    final spentPct = _totalIncome > 0
+        ? (_totalExpense / _totalIncome * 100).clamp(0.0, 100.0)
+        : 0.0;
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primary),
+      );
+    }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(d.pagePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting
+          // â”€â”€ 1. Greeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Halo, $firstName 👋',
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Berikut ringkasan keuanganmu',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Halo, $firstName 👋',
+                      style: Theme.of(context).textTheme.displaySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Berikut ringkasan keuanganmu',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
               ),
               if (user?.photoURL != null)
                 CircleAvatar(
-                  radius: 22,
+                  radius: d.cardAvatarRadius,
                   backgroundImage: NetworkImage(user!.photoURL!),
                 ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: d.itemSpacing),
 
-          // Total Balance Card
+          // â”€â”€ 2. Balance Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          ClipRRect(
+            borderRadius: BorderRadius.circular(d.radiusLG),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                border: Border.all(color: AppTheme.borderSide),
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(width: 4, color: AppTheme.primary),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.all(d.cardPadding + 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TOTAL BALANCE',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              _fmt(_balance),
+                              style: TextStyle(
+                                fontSize: d.font2XL,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textMain,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(
+                                  _balance >= 0
+                                      ? Icons.trending_up
+                                      : Icons.trending_down,
+                                  color: _balance >= 0
+                                      ? AppTheme.primary
+                                      : AppTheme.danger,
+                                  size: d.iconSM,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  '${_transactions.length} transaksi total',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: _balance >= 0
+                                            ? AppTheme.primary
+                                            : AppTheme.danger,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: d.itemSpacing),
+
+          // â”€â”€ 3. Chart Card (Pengeluaran + Pemasukan tabs) â”€â”€
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(d.cardPadding),
             decoration: BoxDecoration(
               color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border(
-                left: const BorderSide(color: AppTheme.primary, width: 4),
-                top: const BorderSide(color: AppTheme.borderSide),
-                right: const BorderSide(color: AppTheme.borderSide),
-                bottom: const BorderSide(color: AppTheme.borderSide),
-              ),
+              borderRadius: BorderRadius.circular(d.radiusLG),
+              border: Border.all(color: AppTheme.borderSide),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'TOTAL BALANCE',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Rp 24.500.000',
-                  style: Theme.of(context).textTheme.displayMedium,
-                ),
-                const SizedBox(height: 12),
+                // Tab header
                 Row(
                   children: [
-                    const Icon(
-                      Icons.trending_up,
-                      color: AppTheme.primary,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '+4.2% dari bulan lalu',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: AppTheme.primary),
-                    ),
+                    _chartTabBtn(d, 0, 'Pengeluaran'),
+                    SizedBox(width: d.itemSpacing * 0.5),
+                    _chartTabBtn(d, 1, 'Pemasukan'),
                   ],
                 ),
+                SizedBox(height: d.itemSpacing),
+
+                // Tab content
+                _chartTab == 0
+                    ? _expenseChart(context, d, expCats, spentPct)
+                    : _incomeChart(context, d, incCats),
               ],
             ),
           ),
+          SizedBox(height: d.itemSpacing),
 
-          const SizedBox(height: 24),
-
-          // Income / Expense summary row
+          // â”€â”€ 4. Summary row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             children: [
               Expanded(
-                child: _buildSummaryCard(
+                child: _summaryCard(
                   context,
+                  d,
                   label: 'PEMASUKAN',
-                  amount: 'Rp 15.000.000',
+                  amount: _fmt(_totalIncome),
                   icon: Icons.arrow_downward,
                   color: AppTheme.primary,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: d.itemSpacing),
               Expanded(
-                child: _buildSummaryCard(
+                child: _summaryCard(
                   context,
+                  d,
                   label: 'PENGELUARAN',
-                  amount: 'Rp 4.250.000',
+                  amount: _fmt(_totalExpense),
                   icon: Icons.arrow_upward,
                   color: AppTheme.danger,
                 ),
               ),
             ],
           ),
+          SizedBox(height: d.sectionSpacing),
 
-          const SizedBox(height: 32),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Distribusi Pengeluaran',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                'DETAIL',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: AppTheme.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Chart Card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.borderSide),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: Stack(
-                    children: [
-                      PieChart(
-                        PieChartData(
-                          sectionsSpace: 0,
-                          centerSpaceRadius: 40,
-                          sections: [
-                            PieChartSectionData(
-                              color: AppTheme.primary,
-                              value: 62,
-                              title: '',
-                              radius: 12,
-                            ),
-                            PieChartSectionData(
-                              color: AppTheme.surfaceHigh,
-                              value: 38,
-                              title: '',
-                              radius: 12,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '62%',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                            Text(
-                              'SPENT',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.labelSmall?.copyWith(fontSize: 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 32),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLegendItem(
-                        context,
-                        AppTheme.primary,
-                        'Kebutuhan',
-                        'Rp 1.800.000',
-                      ),
-                      const SizedBox(height: 12),
-                      _buildLegendItem(
-                        context,
-                        AppTheme.surfaceHigh,
-                        'Gaya Hidup',
-                        'Rp 950.000',
-                      ),
-                      const SizedBox(height: 12),
-                      _buildLegendItem(
-                        context,
-                        AppTheme.borderSide,
-                        'Tabungan',
-                        'Rp 370.000',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
+          // â”€â”€ 5. Recent transactions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Transaksi Terbaru',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                style: TextStyle(
+                  fontSize: d.fontXL,
                   fontWeight: FontWeight.w700,
-                  fontSize: 18,
+                  color: AppTheme.textMain,
                 ),
               ),
-              const Icon(Icons.tune, color: AppTheme.textMuted, size: 20),
+              Icon(Icons.tune, color: AppTheme.textMuted, size: d.iconMD),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: d.itemSpacing),
 
-          TransactionCard(
-            title: 'Apple Store Purchase',
-            subtitle: 'Tech & Electronics • 2j lalu',
-            amount: -999000,
-            iconData: Icons.shopping_bag,
-          ),
-          TransactionCard(
-            title: 'Client Payment - UX UI',
-            subtitle: 'Freelance • 5j lalu',
-            amount: 2450000,
-            iconData: Icons.work,
-            iconColor: AppTheme.primary,
-            iconBgColor: AppTheme.secondaryDark,
-          ),
-          TransactionCard(
-            title: 'The Steakhouse',
-            subtitle: 'Makan & Minum • Kemarin',
-            amount: -124500,
-            iconData: Icons.restaurant,
-          ),
-          TransactionCard(
-            title: 'Transfer Tabungan',
-            subtitle: 'Investasi • 22 Agt',
-            amount: -500000,
-            iconData: Icons.swap_horiz,
-          ),
+          if (recent.isEmpty)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.all(d.sectionSpacing),
+                child: Text(
+                  'Belum ada transaksi',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            )
+          else
+            ...recent.map((t) {
+              final isIncome = t['type'] == 'Pendapatan';
+              final amount = (t['amount'] as num).toDouble();
+              return TransactionCard(
+                title: t['name'] ?? '',
+                subtitle: '${t['category'] ?? ''} • ${t['date'] ?? ''}',
+                amount: isIncome ? amount : -amount,
+                iconData: isIncome ? Icons.payments : Icons.receipt,
+                iconColor: isIncome ? AppTheme.primary : null,
+                iconBgColor: isIncome ? AppTheme.secondaryDark : null,
+              );
+            }),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryCard(
-    BuildContext context, {
+  // â”€â”€ Chart tab button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _chartTabBtn(AppDimensions d, int idx, String label) {
+    final active = _chartTab == idx;
+    return GestureDetector(
+      onTap: () => setState(() => _chartTab = idx),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.symmetric(
+          horizontal: d.cardPadding,
+          vertical: d.itemSpacing * 0.5,
+        ),
+        decoration: BoxDecoration(
+          color: active ? AppTheme.primary : AppTheme.surfaceHigh,
+          borderRadius: BorderRadius.circular(d.radiusSM),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: d.fontSM,
+            fontWeight: FontWeight.w700,
+            color: active ? AppTheme.onPrimary : AppTheme.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // â”€â”€ Expense pie chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _expenseChart(
+    BuildContext context,
+    AppDimensions d,
+    List<Map<String, dynamic>> cats,
+    double spentPct,
+  ) {
+    if (cats.isEmpty) {
+      return SizedBox(
+        height: d.chartSize,
+        child: Center(
+          child: Text(
+            'Belum ada pengeluaran',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        SizedBox(
+          width: d.chartSize,
+          height: d.chartSize,
+          child: Stack(
+            children: [
+              PieChart(
+                PieChartData(
+                  sectionsSpace: 0,
+                  centerSpaceRadius: d.chartCenterRadius,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (event, response) {},
+                    enabled: true,
+                  ),
+                  sections: cats
+                      .map(
+                        (e) => PieChartSectionData(
+                          color: _catColor(e['name']),
+                          value: e['amount'],
+                          title: '',
+                          radius: d.chartRingRadius,
+                          badgeWidget: null,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${spentPct.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: d.fontMD,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textMain,
+                      ),
+                    ),
+                    Text(
+                      'SPENT',
+                      style: TextStyle(
+                        fontSize: d.fontXS,
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: d.itemSpacing),
+        Expanded(
+          child: Column(
+            children: cats.map((e) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: d.itemSpacing * 0.6),
+                child: _legendItem(
+                  context,
+                  d,
+                  _catColor(e['name']),
+                  e['name'],
+                  _fmt(e['amount']),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // â”€â”€ Income pie chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _incomeChart(
+    BuildContext context,
+    AppDimensions d,
+    List<Map<String, dynamic>> cats,
+  ) {
+    if (cats.isEmpty) {
+      return SizedBox(
+        height: d.chartSize,
+        child: Center(
+          child: Text(
+            'Belum ada pemasukan',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+      );
+    }
+
+    final totalIncome = cats.fold(0.0, (s, e) => s + (e['amount'] as double));
+    // Persentase kategori terbesar terhadap total semua pemasukan
+    final topPct = _totalIncome > 0
+        ? ((cats.first['amount'] as double) / _totalIncome * 100).clamp(
+            0.0,
+            100.0,
+          )
+        : 0.0;
+
+    return Row(
+      children: [
+        SizedBox(
+          width: d.chartSize,
+          height: d.chartSize,
+          child: Stack(
+            children: [
+              PieChart(
+                PieChartData(
+                  sectionsSpace: 0,
+                  centerSpaceRadius: d.chartCenterRadius,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (event, response) {},
+                    enabled: true,
+                  ),
+                  sections: cats
+                      .map(
+                        (e) => PieChartSectionData(
+                          color: _catColor(e['name']),
+                          value: e['amount'],
+                          title: '',
+                          radius: d.chartRingRadius,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${topPct.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: d.fontMD,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textMain,
+                      ),
+                    ),
+                    Text(
+                      cats.first['name'],
+                      style: TextStyle(
+                        fontSize: d.fontXS,
+                        color: AppTheme.textMuted,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: d.itemSpacing),
+        Expanded(
+          child: Column(
+            children: cats.map((e) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: d.itemSpacing * 0.6),
+                child: _legendItem(
+                  context,
+                  d,
+                  _catColor(e['name']),
+                  e['name'],
+                  _fmt(e['amount']),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // â”€â”€ Summary card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _summaryCard(
+    BuildContext context,
+    AppDimensions d, {
     required String label,
     required String amount,
     required IconData icon,
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(d.cardPadding),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(d.radiusLG),
         border: Border.all(color: AppTheme.borderSide),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(d.itemSpacing * 0.6),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(d.radiusSM),
             ),
-            child: Icon(icon, color: color, size: 16),
+            child: Icon(icon, color: color, size: d.iconSM),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: d.itemSpacing),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: Theme.of(context).textTheme.labelSmall),
-                const SizedBox(height: 4),
+                SizedBox(height: 3),
                 Text(
                   amount,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelLarge?.copyWith(color: color, fontSize: 13),
+                  style: TextStyle(
+                    fontSize: d.fontSM,
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -318,8 +602,10 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLegendItem(
+  // â”€â”€ Legend item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _legendItem(
     BuildContext context,
+    AppDimensions d,
     Color color,
     String label,
     String amount,
@@ -331,15 +617,22 @@ class DashboardScreen extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: d.fontSM,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textMain,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        const Spacer(),
-        Text(amount, style: Theme.of(context).textTheme.bodyMedium),
+        Text(
+          amount,
+          style: TextStyle(fontSize: d.fontSM, color: AppTheme.textMuted),
+        ),
       ],
     );
   }

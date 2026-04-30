@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_dimensions.dart';
 
 enum ButtonType { primary, secondary, danger, ghost }
 
@@ -21,6 +22,8 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final d = AppDimensions.of(context);
+
     Color bgColor;
     Color textColor;
     BorderSide? border;
@@ -45,23 +48,8 @@ class CustomButton extends StatelessWidget {
         break;
     }
 
-    final buttonContent = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-      children: [
-        if (icon != null) ...[icon!, const SizedBox(width: 8)],
-        Text(
-          text,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: textColor,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-
     return SizedBox(
-      height: 56,
+      height: d.buttonHeight,
       width: fullWidth ? double.infinity : null,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
@@ -69,13 +57,27 @@ class CustomButton extends StatelessWidget {
           foregroundColor: textColor,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(d.radiusSM),
             side: border ?? BorderSide.none,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: d.cardPadding),
         ),
         onPressed: onPressed,
-        child: buttonContent,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            if (icon != null) ...[icon!, SizedBox(width: 8)],
+            Text(
+              text,
+              style: TextStyle(
+                fontSize: d.fontMD,
+                color: textColor,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

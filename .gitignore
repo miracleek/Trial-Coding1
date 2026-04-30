@@ -1,0 +1,29 @@
+# Flutter/Dart
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# Android generated
+android/.gradle/
+android/local.properties
+android/app/google-services.json
+
+# iOS
+ios/
+
+# Desktop
+linux/
+macos/
+windows/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Assets (tidak perlu di-track di main branch)
+assets/app_icon.png
+assets/favicon-32.png
+assets/favicon.png

@@ -7,7 +7,6 @@ import '../screens/dashboard_screen.dart';
 import '../screens/income_screen.dart';
 import '../screens/expense_screen.dart';
 import '../screens/categories_screen.dart';
-import '../screens/transactions_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -62,14 +61,6 @@ class AppRouter {
               GoRoute(
                 path: '/categories',
                 builder: (context, state) => const CategoriesScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/transactions',
-                builder: (context, state) => const TransactionsScreen(),
               ),
             ],
           ),
